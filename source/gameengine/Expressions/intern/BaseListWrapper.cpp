@@ -55,12 +55,12 @@ unsigned int EXP_BaseListWrapper::GetSize() const
 	return (*m_getSize)(m_client);
 }
 
-PyObject *EXP_BaseListWrapper::GetItem(int index) const
+PyObject *EXP_BaseListWrapper::GetItem(unsigned int index) const
 {
 	return (*m_getItem)(m_client, index);
 }
 
-std::string EXP_BaseListWrapper::GetItemName(int index) const
+std::string EXP_BaseListWrapper::GetItemName(unsigned int index) const
 {
 	return (*m_getItemName)(m_client, index);
 }
@@ -103,11 +103,6 @@ std::string EXP_BaseListWrapper::GetText() const
 	strListRep += "]";
 
 	return strListRep;
-}
-
-int EXP_BaseListWrapper::GetValueType() const
-{
-	return -1;
 }
 
 Py_ssize_t EXP_BaseListWrapper::py_len(PyObject *self)
@@ -317,7 +312,7 @@ PyMappingMethods EXP_BaseListWrapper::py_as_mapping = {
 
 PyTypeObject EXP_BaseListWrapper::Type = {
 	PyVarObject_HEAD_INIT(nullptr, 0)
-	"EXP_ListWrapper", // tp_name
+	"EXP_BaseListWrapper", // tp_name
 	sizeof(EXP_PyObjectPlus_Proxy), // tp_basicsize
 	0, // tp_itemsize
 	py_base_dealloc, // tp_dealloc
