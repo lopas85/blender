@@ -26,35 +26,32 @@ class EXP_BaseListValue : public EXP_Value
 	Py_Header
 
 public:
-	typedef std::vector<EXP_Value *> VectorType;
-	typedef VectorType::iterator VectorTypeIterator;
-	typedef VectorType::const_iterator VectorTypeConstIterator;
+	using VectorType = std::vector<EXP_Value *>;
+	using VectorTypeIterator = VectorType::iterator;
+	using VectorTypeConstIterator = VectorType::const_iterator;
 
 protected:
 	VectorType m_valueArray;
-	bool m_bReleaseContents;
 
 	void SetValue(int i, EXP_Value *val);
-	EXP_Value *GetValue(int i);
+	EXP_Value *GetValue(int i) const;
 	EXP_Value *FindValue(const std::string& name) const;
 	bool SearchValue(EXP_Value *val) const;
 	void Add(EXP_Value *value);
 	void Insert(unsigned int i, EXP_Value *value);
 	bool RemoveValue(EXP_Value *val);
+	void MergeList(EXP_BaseListValue& other);
 
 public:
 	EXP_BaseListValue();
 	virtual ~EXP_BaseListValue();
 
-	virtual EXP_Value *GetReplica() = 0;
 	virtual std::string GetName() const;
 	virtual std::string GetText() const;
 
-	void SetReleaseOnDestruct(bool bReleaseContents);
-
+	void Clear();
 	void Remove(int i);
 	void Resize(int num);
-	void ReleaseAndRemoveAll();
 	int GetCount() const;
 	bool Empty() const;
 
