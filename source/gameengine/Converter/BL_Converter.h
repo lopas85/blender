@@ -35,61 +35,19 @@
 #include <map>
 #include <vector>
 
-#ifdef _MSC_VER // MSVC doesn't support incomplete type in std::unique_ptr.
-#  include "KX_BlenderMaterial.h"
-#  include "KX_Mesh.h"
-#  include "BL_ConvertObjectInfo.h"
-#  include "BL_ScalarInterpolator.h"
-#endif
-
 #include "CM_Thread.h"
 
-class EXP_PropString;
 class BL_SceneConverter;
-class BL_ConvertObjectInfo;
 class KX_KetsjiEngine;
 class KX_LibLoadStatus;
-class KX_BlenderMaterial;
-class BL_InterpolatorList;
-class SCA_IActuator;
-class SCA_IController;
-class KX_Mesh;
 struct Main;
 struct BlendHandle;
-struct Mesh;
 struct Scene;
-struct Material;
-struct bAction;
-struct bActuator;
-struct bController;
 struct TaskPool;
-
-template<class Value>
-using UniquePtrList = std::vector<std::unique_ptr<Value> >;
 
 class BL_Converter
 {
 private:
-	class SceneSlot
-	{
-	public:
-		UniquePtrList<KX_BlenderMaterial> m_materials;
-		UniquePtrList<KX_Mesh> m_meshobjects;
-		UniquePtrList<BL_InterpolatorList> m_interpolators;
-		UniquePtrList<BL_ConvertObjectInfo> m_objectInfos;
-
-		std::map<bAction *, BL_InterpolatorList *> m_actionToInterp;
-
-		SceneSlot();
-		SceneSlot(const BL_SceneConverter& converter);
-		~SceneSlot();
-
-		void Merge(SceneSlot& other);
-		void Merge(const BL_SceneConverter& converter);
-	};
-
-	std::map<KX_Scene *, SceneSlot> m_sceneSlots;
-
 	struct ThreadInfo {
 		TaskPool *m_pool;
 		CM_ThreadMutex m_mutex;
@@ -130,10 +88,7 @@ public:
 	 */
 	void RemoveScene(KX_Scene *scene);
 
-	void RegisterInterpolatorList(KX_Scene *scene, BL_InterpolatorList *interpolator, bAction *for_act);
-	BL_InterpolatorList *FindInterpolatorList(KX_Scene *scene, bAction *for_act);
-	/// Register a mesh object copy.
-	void RegisterMesh(KX_Scene *scene, KX_Mesh *mesh);
+	void SetAlwaysUseExpandFraming(bool to_what);
 
 	Scene *GetBlenderSceneForName(const std::string& name);
 	std::vector<std::string> GetInactiveSceneNames() const;
@@ -150,8 +105,6 @@ public:
 	bool FreeBlendFile(const std::string& path);
 
 	KX_Mesh *ConvertMeshSpecial(KX_Scene *kx_scene, Main *maggie, const std::string& name);
-
-	void MergeScene(KX_Scene *to, KX_Scene *from);
 
 	void MergeAsyncLoads();
 	void FinalizeAsyncLoads();

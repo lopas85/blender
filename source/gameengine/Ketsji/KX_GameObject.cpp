@@ -658,7 +658,7 @@ void KX_GameObject::AddMeshUser()
 {
 	for (size_t i = 0; i < m_meshes.size(); ++i) {
 		RAS_Deformer *deformer = BL_ConvertDeformer(this, m_meshes[i]);
-		m_meshUser = m_meshes[i]->AddMeshUser(&m_clientInfo, deformer);
+		m_meshUser.reset(m_meshes[i]->AddMeshUser(&m_clientInfo, deformer));
 		// Make sure the mesh user get the matrix even if the object doesn't move.
 		NodeGetWorldTransform().PackFromAffineTransform(m_meshUser->GetMatrix());
 	}
@@ -686,10 +686,8 @@ void KX_GameObject::ReplaceMesh(KX_Mesh *mesh, bool use_gfx, bool use_phys)
 	}
 
 	// Update the new assigned mesh with the physics mesh.
-	if (use_phys) {
-		if (m_physicsController) {
-			m_physicsController->ReinstancePhysicsShape(nullptr, use_gfx ? nullptr : mesh);
-		}
+	if (use_phys && m_physicsController) {
+		m_physicsController->ReinstancePhysicsShape(nullptr, use_gfx ? nullptr : mesh);
 	}
 	// Always make sure that the bounding box is updated to the new mesh.
 	UpdateBounds(true);
@@ -699,13 +697,7 @@ void KX_GameObject::ReplaceMesh(KX_Mesh *mesh, bool use_gfx, bool use_phys)
 void KX_GameObject::RemoveMeshes()
 {
 	// Remove all mesh slots.
-	if (m_meshUser) {
-		delete m_meshUser;
-		m_meshUser = nullptr;
-	}
-
-	//note: meshes can be shared, and are deleted by BL_SceneConverter
-
+	m_meshUser.reset(nullptr);
 	m_meshes.clear();
 }
 
@@ -716,7 +708,7 @@ const std::vector<KX_Mesh *>& KX_GameObject::GetMeshList() const
 
 RAS_MeshUser *KX_GameObject::GetMeshUser() const
 {
-	return m_meshUser;
+	return m_meshUser.get();
 }
 
 bool KX_GameObject::Renderable(int layer) const
@@ -1985,7 +1977,7 @@ PyObject *KX_GameObject::PyReplaceMesh(PyObject *args, PyObject *kwds)
 		return nullptr;
 	}
 
-	if (!ConvertPythonToMesh(0, value, &new_mesh, false, "gameOb.replaceMesh(value): KX_GameObject")) {
+	if (!ConvertPythonToMesh(GetScene(), value, &new_mesh, false, "gameOb.replaceMesh(value): KX_GameObject")) {
 		return nullptr;
 	}
 
@@ -2009,10 +2001,12 @@ PyObject *KX_GameObject::PyReinstancePhysicsMesh(PyObject *args, PyObject *kwds)
 	PyObject *gameobj_py = nullptr;
 	PyObject *mesh_py = nullptr;
 
+	KX_Scene *scene = GetScene();
+
 	if (!EXP_ParseTupleArgsAndKeywords(args, kwds, "|OOi:reinstancePhysicsMesh",
 	                                   {"gameObject", "meshObject", "dupli", 0}, &gameobj_py, &mesh_py, &dupli) ||
-	    (gameobj_py && !ConvertPythonToGameObject(0, gameobj_py, &gameobj, true, "gameOb.reinstancePhysicsMesh(obj, mesh, dupli): KX_GameObject")) ||
-	    (mesh_py && !ConvertPythonToMesh(0, mesh_py, &mesh, true, "gameOb.reinstancePhysicsMesh(obj, mesh, dupli): KX_GameObject"))) {
+	    (gameobj_py && !ConvertPythonToGameObject(scene, gameobj_py, &gameobj, true, "gameOb.reinstancePhysicsMesh(obj, mesh, dupli): KX_GameObject")) ||
+	    (mesh_py && !ConvertPythonToMesh(scene, mesh_py, &mesh, true, "gameOb.reinstancePhysicsMesh(obj, mesh, dupli): KX_GameObject"))) {
 		return nullptr;
 	}
 
@@ -2028,7 +2022,7 @@ PyObject *KX_GameObject::PyReplacePhysicsShape(PyObject *value)
 {
 	KX_GameObject *gameobj;
 
-	if (!ConvertPythonToGameObject(0, value, &gameobj, false, "gameOb.replacePhysicsShape(obj): KX_GameObject")) {
+	if (!ConvertPythonToGameObject(GetScene(), value, &gameobj, false, "gameOb.replacePhysicsShape(obj): KX_GameObject")) {
 		return nullptr;
 	}
 
@@ -2183,25 +2177,14 @@ int KX_GameObject::pyattr_set_name(EXP_PyObjectPlus *self_v, const EXP_PYATTRIBU
 		return PY_SET_ATTR_FAIL;
 	}
 
-	std::string newname = std::string(_PyUnicode_AsString(value));
-	std::string oldname = self->GetName();
+	const std::string newname = std::string(_PyUnicode_AsString(value));
+	const std::string oldname = self->GetName();
 
-// TODO
-#if 0
-	// If true, it mean that's this game object is not a replica and was added at conversion time.
-	if (manager->GetGameObjectByName(oldname) == self) {
-		/* Two non-replica objects can have the same name because these objects are register in the
-		 * logic manager and that the result of GetGameObjectByName will be undefined. */
-		if (manager->GetGameObjectByName(newname)) {
-			PyErr_Format(PyExc_TypeError, "gameOb.name = str: name %s is already used by an other non-replica game object", oldname.c_str());
-			return PY_SET_ATTR_FAIL;
-		}
-		// Unregister the old name.
-		manager->UnregisterGameObjectName(oldname);
-		// Register the object under the new name.
-		manager->RegisterGameObjectName(newname, self);
+	KX_Scene *scene = self->GetScene();
+	if (!scene->GetResources().ChangeObjectName(oldname, newname, self)) {
+		PyErr_Format(PyExc_TypeError, "gameOb.name = str: name %s is already used by an other non-replica game object", oldname.c_str());
+		return PY_SET_ATTR_FAIL;
 	}
-#endif 
 
 	// Change the name
 	self->SetName(newname);
@@ -3382,7 +3365,7 @@ PyObject *KX_GameObject::PySetParent(PyObject *args, PyObject *kwds)
 	                                   &pyobj, &addToCompound, &ghost)) {
 		return nullptr; // Python sets a simple error
 	}
-	if (!ConvertPythonToGameObject(0, pyobj, &obj, true, "gameOb.setParent(obj): KX_GameObject")) {
+	if (!ConvertPythonToGameObject(GetScene(), pyobj, &obj, true, "gameOb.setParent(obj): KX_GameObject")) {
 		return nullptr;
 	}
 
@@ -3420,7 +3403,7 @@ PyObject *KX_GameObject::PyCollide(PyObject *value)
 	KX_Scene *scene = GetScene();
 	KX_GameObject *other;
 
-	if (!ConvertPythonToGameObject(0, value, &other, false, "gameOb.collide(obj): KX_GameObject")) {
+	if (!ConvertPythonToGameObject(scene, value, &other, false, "gameOb.collide(obj): KX_GameObject")) {
 		return nullptr;
 	}
 
@@ -3578,7 +3561,7 @@ EXP_PYMETHODDEF_DOC_O(KX_GameObject, getDistanceTo,
 	PyErr_Clear();
 
 	KX_GameObject *other;
-	if (ConvertPythonToGameObject(0, value, &other, false, "gameOb.getDistanceTo(value): KX_GameObject")) {
+	if (ConvertPythonToGameObject(GetScene(), value, &other, false, "gameOb.getDistanceTo(value): KX_GameObject")) {
 		return PyFloat_FromDouble((NodeGetWorldPosition() - other->NodeGetWorldPosition()).Length());
 	}
 
@@ -3599,7 +3582,7 @@ EXP_PYMETHODDEF_DOC_O(KX_GameObject, getVectTo,
 		PyErr_Clear();
 
 		KX_GameObject *other;
-		if (ConvertPythonToGameObject(0, value, &other, false, "")) { /* error will be overwritten */
+		if (ConvertPythonToGameObject(GetScene(), value, &other, false, "")) { /* error will be overwritten */
 			toPoint = other->NodeGetWorldPosition();
 		}
 		else {
@@ -3699,7 +3682,7 @@ EXP_PYMETHODDEF_DOC(KX_GameObject, rayCastTo,
 		KX_GameObject *other;
 		PyErr_Clear();
 
-		if (ConvertPythonToGameObject(0, pyarg, &other, false, "")) { /* error will be overwritten */
+		if (ConvertPythonToGameObject(GetScene(), pyarg, &other, false, "")) { /* error will be overwritten */
 			toPoint = other->NodeGetWorldPosition();
 		}
 		else {
@@ -3813,10 +3796,12 @@ EXP_PYMETHODDEF_DOC(KX_GameObject, rayCast,
 		return nullptr; // Python sets a simple error
 	}
 
+	KX_Scene *scene = GetScene();
+
 	if (!PyVecTo(pyto, toPoint)) {
 		PyErr_Clear();
 
-		if (ConvertPythonToGameObject(0, pyto, &other, false, "")) { /* error will be overwritten */
+		if (ConvertPythonToGameObject(scene, pyto, &other, false, "")) { /* error will be overwritten */
 			toPoint = other->NodeGetWorldPosition();
 		}
 		else {
@@ -3830,7 +3815,7 @@ EXP_PYMETHODDEF_DOC(KX_GameObject, rayCast,
 	else if (!PyVecTo(pyfrom, fromPoint)) {
 		PyErr_Clear();
 
-		if (ConvertPythonToGameObject(0, pyfrom, &other, false, "")) { /* error will be overwritten */
+		if (ConvertPythonToGameObject(scene, pyfrom, &other, false, "")) { /* error will be overwritten */
 			fromPoint = other->NodeGetWorldPosition();
 		}
 		else {
@@ -3858,7 +3843,7 @@ EXP_PYMETHODDEF_DOC(KX_GameObject, rayCast,
 		return none_tuple_3();
 	}
 
-	PHY_IPhysicsEnvironment *pe = GetScene()->GetPhysicsEnvironment();
+	PHY_IPhysicsEnvironment *pe = scene->GetPhysicsEnvironment();
 	PHY_IPhysicsController *spc = m_physicsController.get();
 	KX_GameObject *parent = GetParent();
 	if (!spc && parent) {
@@ -4124,7 +4109,7 @@ PyObject *KX_GameObject::Pyget(PyObject *args)
 	return def;
 }
 
-bool ConvertPythonToGameObject(void *manager, PyObject *value, KX_GameObject **object, bool py_none_ok, const char *error_prefix)
+bool ConvertPythonToGameObject(KX_Scene *scene, PyObject *value, KX_GameObject **object, bool py_none_ok, const char *error_prefix)
 {
 	if (value == nullptr) {
 		PyErr_Format(PyExc_TypeError, "%s, python pointer nullptr, should never happen", error_prefix);
@@ -4144,8 +4129,8 @@ bool ConvertPythonToGameObject(void *manager, PyObject *value, KX_GameObject **o
 		}
 	}
 
-	/*if (PyUnicode_Check(value)) {
-		*object = (KX_GameObject *)manager->GetGameObjectByName(std::string(_PyUnicode_AsString(value)));
+	if (PyUnicode_Check(value)) {
+		*object = scene->GetResources().FindObject(std::string(_PyUnicode_AsString(value)));
 
 		if (*object) {
 			return true;
@@ -4154,7 +4139,7 @@ bool ConvertPythonToGameObject(void *manager, PyObject *value, KX_GameObject **o
 			PyErr_Format(PyExc_ValueError, "%s, requested name \"%s\" did not match any KX_GameObject in this scene", error_prefix, _PyUnicode_AsString(value));
 			return false;
 		}
-	}*/
+	}
 
 	if (PyObject_TypeCheck(value, &KX_GameObject::Type) ||
 	    PyObject_TypeCheck(value, &KX_LightObject::Type)    ||

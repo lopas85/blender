@@ -130,7 +130,7 @@ void KX_FontObject::ProcessReplica()
 
 void KX_FontObject::AddMeshUser()
 {
-	m_meshUser = new RAS_TextUser(&m_clientInfo, m_boundingBox);
+	m_meshUser.reset(new RAS_TextUser(&m_clientInfo, m_boundingBox));
 
 	// Make sure the mesh user get the matrix even if the object doesn't move.
 	NodeGetWorldTransform().PackFromAffineTransform(m_meshUser->GetMatrix());
@@ -169,7 +169,7 @@ void KX_FontObject::UpdateBuckets()
 	// Orient the spacing vector
 	mt::vec3 spacing = NodeGetWorldOrientation() * mt::vec3(0.0f, m_fsize * m_line_spacing, 0.0f) * NodeGetWorldScaling()[1];
 
-	RAS_TextUser *textUser = (RAS_TextUser *)m_meshUser;
+	RAS_TextUser *textUser = static_cast<RAS_TextUser *>(m_meshUser.get());
 
 	textUser->SetColor(mt::vec4(color));
 	textUser->SetFrontFace(!IsNegativeScaling());
