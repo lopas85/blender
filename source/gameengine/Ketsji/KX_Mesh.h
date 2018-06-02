@@ -80,7 +80,7 @@ public:
 	std::vector<KX_BlenderMaterial *> pyattr_get_materials();
 	int pyattr_get_numMaterials();
 	int pyattr_get_numPolygons();
-	EXP_ListWrapper *pyattr_get_polygons();
+	EXP_BaseListWrapper *pyattr_get_polygons();
 
 	unsigned int py_get_polygons_size();
 	PyObject *py_get_polygons_item(unsigned int index);

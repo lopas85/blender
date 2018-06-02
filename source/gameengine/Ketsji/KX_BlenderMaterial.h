@@ -64,7 +64,7 @@ public:
 #ifdef WITH_PYTHON
 
 	PyObject *pyattr_get_shader();
-	EXP_ListWrapper *pyattr_get_textures();
+	EXP_BaseListWrapper *pyattr_get_textures();
 	PyObject *pyattr_get_blending();
 	bool pyattr_set_blending(PyObject *value);
 	float pyattr_get_alpha();

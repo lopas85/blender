@@ -196,10 +196,10 @@ bool KX_VertexProxy::py_set_uvs_item(unsigned int index, PyObject *item)
 	return true;
 }
 
-EXP_ListWrapper *KX_VertexProxy::pyattr_get_uvs()
+EXP_BaseListWrapper *KX_VertexProxy::pyattr_get_uvs()
 {
 	return (new EXP_ListWrapper<KX_VertexProxy, &KX_VertexProxy::py_get_uvs_size, &KX_VertexProxy::py_get_uvs_item,
-				&KX_VertexProxy::py_set_uvs_item>(self_v));
+				&KX_VertexProxy::py_set_uvs_item>(this));
 }
 
 unsigned int KX_VertexProxy::py_get_colors_size()
@@ -228,15 +228,10 @@ bool KX_VertexProxy::py_set_colors_item(unsigned int index, PyObject *item)
 	return true;
 }
 
-EXP_ListWrapper *KX_VertexProxy::pyattr_get_colors()
+EXP_BaseListWrapper *KX_VertexProxy::pyattr_get_colors()
 {
-	return (new EXP_ListWrapper(self_v,
-	                            ((KX_VertexProxy *)self_v)->GetProxy(),
-	                            nullptr,
-	                            kx_vertex_proxy_get_colors_size_cb,
-	                            kx_vertex_proxy_get_colors_item_cb,
-	                            nullptr,
-	                            kx_vertex_proxy_set_colors_item_cb))->NewProxy(true);
+	return (new EXP_ListWrapper<KX_VertexProxy, &KX_VertexProxy::py_get_colors_size, &KX_VertexProxy::py_get_colors_item,
+				&KX_VertexProxy::py_set_colors_item>(this));
 }
 
 mt::vec4 KX_VertexProxy::pyattr_get_color()

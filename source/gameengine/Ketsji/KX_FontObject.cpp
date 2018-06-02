@@ -350,10 +350,10 @@ void KX_FontObject::pyattr_set_text(const std::string& value)
 	/* Allow for some logic brick control */
 	EXP_PropValue *tprop = GetProperty("Text"); // TODO deprecate
 	if (tprop && tprop->GetValueType() == EXP_PropValue::TYPE_STRING) {
-		static_cast<EXP_PropString *>(tprop)->SetValue(std::string(chars));
+		static_cast<EXP_PropString *>(tprop)->SetValue(value);
 	}
 	else {
-		SetText(std::string(chars)); // TODO: Check unicode support
+		SetText(value); // TODO: Check unicode support
 	}
 }
 

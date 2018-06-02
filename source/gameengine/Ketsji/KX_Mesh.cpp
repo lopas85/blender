@@ -424,9 +424,9 @@ PyObject *KX_Mesh::py_get_polygons_item(unsigned int index)
 	return polyProxy->NewProxy(true);
 }
 
-EXP_ListWrapper *KX_Mesh::pyattr_get_polygons()
+EXP_BaseListWrapper *KX_Mesh::pyattr_get_polygons()
 {
-	return (new EXP_ListWrapper<KX_Mesh, &KX_Mesh::py_get_polygons_size, &KX_Mesh::py_get_polygons_item>(self_v));
+	return (new EXP_ListWrapper<KX_Mesh, &KX_Mesh::py_get_polygons_size, &KX_Mesh::py_get_polygons_item>(this));
 }
 
 /* a close copy of ConvertPythonToGameObject but for meshes */

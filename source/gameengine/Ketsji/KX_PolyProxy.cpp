@@ -181,9 +181,9 @@ PyObject *KX_PolyProxy::py_get_vertices_item(unsigned int index)
 	return vert->NewProxy(true);
 }
 
-EXP_ListWrapper *KX_PolyProxy::pyattr_get_vertices()
+EXP_BaseListWrapper *KX_PolyProxy::pyattr_get_vertices()
 {
-	return (new EXP_ListWrapper<KX_PolyProxy, &KX_PolyProxy::py_get_vertices_size, &KX_PolyProxy::py_get_vertices_item>(self_v));
+	return (new EXP_ListWrapper<KX_PolyProxy, &KX_PolyProxy::py_get_vertices_size, &KX_PolyProxy::py_get_vertices_item>(this));
 }
 
 EXP_PYMETHODDEF_DOC_NOARGS(KX_PolyProxy, getMaterialIndex,

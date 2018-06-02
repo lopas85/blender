@@ -11,7 +11,18 @@
 #include "mathfu.h"
 
 class EXP_Value;
-class EXP_ListWrapper;
+class EXP_BaseListWrapper;
+
+class EXP_ValuePythonOwn
+{
+private:
+    EXP_Value *m_value;
+
+public:
+    EXP_ValuePythonOwn(EXP_Value *value);
+
+    PyObject *GetProxy() const;
+};
 
 inline PyObject *PyUnicode_FromStdString(const std::string& str)
 {
@@ -88,8 +99,10 @@ inline PyObject *EXP_ConvertToPython(const mt::mat4& ptr)
 	return nullptr;
 }
 
-PyObject *EXP_ConvertToPython(EXP_ListWrapper *ptr);
+PyObject *EXP_ConvertToPython(EXP_BaseListWrapper *ptr);
 PyObject *EXP_ConvertToPython(EXP_Value *ptr);
+PyObject *EXP_ConvertToPython(EXP_Value &ptr);
+PyObject *EXP_ConvertToPython(const EXP_ValuePythonOwn &ptr);
 
 inline PyObject *EXP_ConvertToPython(PyObject *ptr)
 {

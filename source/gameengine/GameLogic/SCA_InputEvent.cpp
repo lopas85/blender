@@ -139,9 +139,9 @@ PyObject *SCA_InputEvent::get_status_item(unsigned int index)
 	return PyLong_FromLong(m_status[index]);
 }
 
-EXP_ListWrapper *SCA_InputEvent::pyattr_get_status()
+EXP_BaseListWrapper *SCA_InputEvent::pyattr_get_status()
 {
-	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_status_size, &SCA_InputEvent::get_status_item>(self_v));
+	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_status_size, &SCA_InputEvent::get_status_item>(this));
 }
 
 unsigned int SCA_InputEvent::get_queue_size()
@@ -154,9 +154,9 @@ PyObject *SCA_InputEvent::get_queue_item(unsigned int index)
 	return PyLong_FromLong(m_queue[index]);
 }
 
-EXP_ListWrapper *SCA_InputEvent::pyattr_get_queue()
+EXP_BaseListWrapper *SCA_InputEvent::pyattr_get_queue()
 {
-	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_queue_size, &SCA_InputEvent::get_queue_item>(self_v));
+	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_queue_size, &SCA_InputEvent::get_queue_item>(this));
 }
 
 unsigned int SCA_InputEvent::get_values_size()
@@ -169,9 +169,9 @@ PyObject *SCA_InputEvent::get_values_item(unsigned int index)
 	return PyLong_FromLong(m_values[index]);
 }
 
-EXP_ListWrapper *SCA_InputEvent::pyattr_get_values()
+EXP_BaseListWrapper *SCA_InputEvent::pyattr_get_values()
 {
-	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_values_size, &SCA_InputEvent::get_values_item>(self_v));
+	return (new EXP_ListWrapper<SCA_InputEvent, &SCA_InputEvent::get_values_size, &SCA_InputEvent::get_values_item>(this));
 }
 
 bool SCA_InputEvent::pyattr_get_inactive()

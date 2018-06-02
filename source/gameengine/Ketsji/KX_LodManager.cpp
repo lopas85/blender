@@ -216,9 +216,9 @@ PyObject *KX_LodManager::py_get_levels_item(unsigned int index)
 	return m_levels[index].GetProxy();
 }
 
-EXP_ListWrapper *KX_LodManager::pyattr_get_levels()
+EXP_BaseListWrapper *KX_LodManager::pyattr_get_levels()
 {
-	return (new EXP_ListWrapper<KX_LodManager, &KX_LodManager::py_get_levels_size, &KX_LodManager::py_get_levels_item>(self_v));
+	return (new EXP_ListWrapper<KX_LodManager, &KX_LodManager::py_get_levels_size, &KX_LodManager::py_get_levels_item>(this));
 }
 
 bool ConvertPythonToLodManager(PyObject *value, KX_LodManager **object, bool py_none_ok, const char *error_prefix)

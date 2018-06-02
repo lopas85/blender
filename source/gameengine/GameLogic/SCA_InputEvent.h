@@ -31,7 +31,7 @@
 
 #include <vector>
 
-class EXP_ListWrapper;
+class EXP_BaseListWrapper;
 
 class SCA_InputEvent : public EXP_Value
 {
@@ -79,9 +79,9 @@ public:
 	unsigned int get_values_size();
 	PyObject *get_values_item(unsigned int index);
 
-	EXP_ListWrapper *pyattr_get_status();
-	EXP_ListWrapper *pyattr_get_queue();
-	EXP_ListWrapper *pyattr_get_values();
+	EXP_BaseListWrapper *pyattr_get_status();
+	EXP_BaseListWrapper *pyattr_get_queue();
+	EXP_BaseListWrapper *pyattr_get_values();
 	bool pyattr_get_inactive();
 	bool pyattr_get_active();
 	bool pyattr_get_activated();

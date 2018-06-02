@@ -90,9 +90,9 @@ PyObject *KX_2DFilterOffScreen::py_get_textures_item(unsigned int index)
 	return PyLong_FromLong(bindCode);
 }
 
-EXP_ListWrapper *KX_2DFilterOffScreen::pyattr_get_colorBindCodes()
+EXP_BaseListWrapper *KX_2DFilterOffScreen::pyattr_get_colorBindCodes()
 {
-	return (new EXP_ListWrapper<KX_2DFilterOffScreen, &KX_2DFilterOffScreen::py_get_textures_size, &KX_2DFilterOffScreen::py_get_textures_item>(self_v));
+	return (new EXP_ListWrapper<KX_2DFilterOffScreen, &KX_2DFilterOffScreen::py_get_textures_size, &KX_2DFilterOffScreen::py_get_textures_item>(this));
 }
 
 int KX_2DFilterOffScreen::pyattr_get_depthBindCode()

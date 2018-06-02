@@ -499,10 +499,10 @@ std::string KX_BlenderMaterial::py_get_textures_item_name(unsigned int index)
 	return (tex ? tex->GetName() : "");
 }
 
-EXP_ListWrapper *KX_BlenderMaterial::pyattr_get_textures()
+EXP_BaseListWrapper *KX_BlenderMaterial::pyattr_get_textures()
 {
 	return (new EXP_ListWrapper<KX_BlenderMaterial, &KX_BlenderMaterial::py_get_textures_size, &KX_BlenderMaterial::py_get_textures_item,
-				nullptr, &KX_BlenderMaterial::py_get_textures_item_name>(self_v));
+				nullptr, &KX_BlenderMaterial::py_get_textures_item_name>(this));
 }
 
 PyObject *KX_BlenderMaterial::pyattr_get_blending()

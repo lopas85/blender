@@ -105,7 +105,7 @@ public:
 
 #ifdef WITH_PYTHON
 
-	EXP_ListWrapper *pyattr_get_levels();
+	EXP_BaseListWrapper *pyattr_get_levels();
 
 	unsigned int py_get_levels_size();
 	PyObject *py_get_levels_item(unsigned int index);

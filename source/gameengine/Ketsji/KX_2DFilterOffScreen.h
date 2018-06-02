@@ -41,7 +41,7 @@ public:
 
 #ifdef WITH_PYTHON
 
-	EXP_ListWrapper *pyattr_get_colorBindCodes();
+	EXP_BaseListWrapper *pyattr_get_colorBindCodes();
 	int pyattr_get_depthBindCode();
 
 	unsigned int py_get_textures_size();

@@ -72,9 +72,9 @@ public:
 	mt::vec3 pyattr_get_XYZ();
 	mt::vec2 pyattr_get_UV();
 	mt::vec4 pyattr_get_color();
-	EXP_ListWrapper *pyattr_get_colors();
+	EXP_BaseListWrapper *pyattr_get_colors();
 	mt::vec3 pyattr_get_normal();
-	EXP_ListWrapper *pyattr_get_uvs();
+	EXP_BaseListWrapper *pyattr_get_uvs();
 	void pyattr_set_x(float value);
 	void pyattr_set_y(float value);
 	void pyattr_set_z(float value);

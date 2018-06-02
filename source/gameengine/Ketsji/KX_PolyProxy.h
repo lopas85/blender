@@ -68,7 +68,7 @@ public:
 	int pyattr_get_v4();
 	bool pyattr_get_visible();
 	bool pyattr_get_collide();
-	EXP_ListWrapper *pyattr_get_vertices();
+	EXP_BaseListWrapper *pyattr_get_vertices();
 
 	unsigned int py_get_vertices_size();
 	PyObject *py_get_vertices_item(unsigned int index);
