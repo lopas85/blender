@@ -1491,7 +1491,7 @@ void BL_ConvertBlenderObjects(struct Main *maggie,
 
 	// Init mesh users and mesh slots once the deformers are available.
 	for (KX_GameObject *gameobj : objectlist) {
-		gameobj->AddMeshUser();
+		gameobj->AddDefaultMeshUser();
 	}
 
 	// Create graphic controller for culling.
