@@ -45,6 +45,7 @@
 #include "DNA_texture_types.h"
 #include "DNA_world_types.h"
 #include "DNA_linestyle_types.h"
+#include "DNA_object_types.h"
 
 #include "BLI_listbase.h"
 #include "BLI_math.h"
@@ -74,6 +75,7 @@
 #include "NOD_composite.h"
 #include "NOD_shader.h"
 #include "NOD_texture.h"
+#include "NOD_logic.h"
 
 #define NODE_DEFAULT_MAX_WIDTH 700
 
@@ -611,6 +613,8 @@ const char *nodeStaticSocketType(int type, int subtype)
 			return "NodeSocketString";
 		case SOCK_SHADER:
 			return "NodeSocketShader";
+		case SOCK_LOGIC:
+			return "NodeSocketLogic";
 	}
 	return NULL;
 }
@@ -672,6 +676,8 @@ const char *nodeStaticSocketInterfaceType(int type, int subtype)
 			return "NodeSocketInterfaceString";
 		case SOCK_SHADER:
 			return "NodeSocketInterfaceShader";
+		case SOCK_LOGIC:
+			return "NodeSocketInterfaceLogic";
 	}
 	return NULL;
 }
@@ -1940,6 +1946,7 @@ bNodeTree *ntreeFromID(ID *id)
 		case ID_TE:  return ((Tex *)id)->nodetree;
 		case ID_SCE: return ((Scene *)id)->nodetree;
 		case ID_LS:  return ((FreestyleLineStyle *)id)->nodetree;
+		case ID_OB:  return ((Object *)id)->logicNodeTree;
 		default: return NULL;
 	}
 }
@@ -3549,6 +3556,10 @@ static void registerCompositNodes(void)
 	register_node_type_cmp_cornerpin();
 }
 
+static void registerLogicNodes(void)
+{
+}
+
 static void registerShaderNodes(void) 
 {
 	register_node_type_sh_group();
@@ -3710,6 +3721,7 @@ void init_nodesystem(void)
 	register_node_tree_type_cmp();
 	register_node_tree_type_sh();
 	register_node_tree_type_tex();
+	register_node_tree_type_logic();
 
 	register_node_type_frame();
 	register_node_type_reroute();
@@ -3717,6 +3729,7 @@ void init_nodesystem(void)
 	register_node_type_group_output();
 	
 	registerCompositNodes();
+	registerLogicNodes();
 	registerShaderNodes();
 	registerTextureNodes();
 }
@@ -3773,6 +3786,7 @@ void BKE_node_tree_iter_init(struct NodeTreeIterStore *ntreeiter, struct Main *b
 	ntreeiter->lamp = bmain->lamp.first;
 	ntreeiter->world = bmain->world.first;
 	ntreeiter->linestyle = bmain->linestyle.first;
+	ntreeiter->object = bmain->object.first;
 }
 bool BKE_node_tree_iter_step(struct NodeTreeIterStore *ntreeiter,
                              bNodeTree **r_nodetree, struct ID **r_id)
@@ -3811,6 +3825,11 @@ bool BKE_node_tree_iter_step(struct NodeTreeIterStore *ntreeiter,
 		*r_nodetree =       ntreeiter->linestyle->nodetree;
 		*r_id       = (ID *)ntreeiter->linestyle;
 		ntreeiter->linestyle = ntreeiter->linestyle->id.next;
+	}
+	else if (ntreeiter->object) {
+		*r_nodetree =       ntreeiter->object->logicNodeTree;
+		*r_id       = (ID *)ntreeiter->object;
+		ntreeiter->object = ntreeiter->object->id.next;
 	}
 	else {
 		return false;

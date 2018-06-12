@@ -76,7 +76,8 @@ static int node_group_operator_active(bContext *C)
 		 */
 		if (STREQ(snode->tree_idname, "ShaderNodeTree") ||
 		    STREQ(snode->tree_idname, "CompositorNodeTree") ||
-		    STREQ(snode->tree_idname, "TextureNodeTree"))
+		    STREQ(snode->tree_idname, "TextureNodeTree") ||
+		    STREQ(snode->tree_idname, "LogicNodeTree"))
 		{
 			return true;
 		}
