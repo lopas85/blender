@@ -608,10 +608,10 @@ void KX_KetsjiEngine::Render()
 		scene->RenderTextureRenderers(KX_TextureRendererManager::VIEWPORT_INDEPENDENT, m_rasterizer, nullptr, nullptr, RAS_Rect(), RAS_Rect());
 	}
 
-	RenderData renderData = GetRenderData();
-
 	// Update all off screen to the current canvas size.
 	m_rasterizer->UpdateOffScreens(m_canvas);
+
+	RenderData renderData = GetRenderData();
 
 	const int width = m_canvas->GetWidth();
 	const int height = m_canvas->GetHeight();
@@ -792,6 +792,10 @@ void KX_KetsjiEngine::UpdateAnimations(KX_Scene *scene)
 
 void KX_KetsjiEngine::RenderShadowBuffers(KX_Scene *scene)
 {
+	if (m_rasterizer->GetDrawingMode() != RAS_Rasterizer::RAS_TEXTURED) {
+		return;
+	}
+
 	EXP_ListValue<KX_LightObject> *lightlist = scene->GetLightList();
 
 	m_rasterizer->SetAuxilaryClientInfo(scene);
@@ -800,35 +804,34 @@ void KX_KetsjiEngine::RenderShadowBuffers(KX_Scene *scene)
 		light->Update();
 	}
 
-	if (m_rasterizer->GetDrawingMode() == RAS_Rasterizer::RAS_TEXTURED) {
-		for (KX_LightObject *light : lightlist) {
-			RAS_ILightObject *raslight = light->GetLightData();
-			if (light->GetVisible() && raslight->HasShadowBuffer() && raslight->NeedShadowUpdate()) {
-				/* make temporary camera */
-				RAS_CameraData camdata = RAS_CameraData();
-				KX_Camera *cam = new KX_Camera(scene, KX_Scene::m_callbacks, camdata, true);
-				cam->SetName("__shadow__cam__");
+	for (KX_LightObject *light : lightlist) {
+		RAS_ILightObject *raslight = light->GetLightData();
+		if (light->GetVisible() && raslight->HasShadowBuffer() && raslight->NeedShadowUpdate()) {
+			mt::mat4 viewmat;
+			mt::mat4 projmat;
+			raslight->GetShadowMatrix(viewmat, projmat);
+			/* setup rasterizer transformations */
+			m_rasterizer->SetViewMatrix(viewmat);
+			m_rasterizer->SetProjectionMatrix(projmat);
 
-				mt::mat3x4 camtrans;
+			const SG_Frustum frustum(projmat * viewmat);
+			const std::vector<KX_GameObject *> objects = scene->CalculateVisibleMeshes(frustum, raslight->GetShadowLayer());
 
-				/* binds framebuffer object, sets up camera .. */
-				raslight->BindShadowBuffer(m_canvas, cam, camtrans);
+			m_logger.StartLog(tc_animations, m_kxsystem->GetTimeInSeconds());
+			UpdateAnimations(scene);
+			m_logger.StartLog(tc_rasterizer, m_kxsystem->GetTimeInSeconds());
 
-				const std::vector<KX_GameObject *> objects = scene->CalculateVisibleMeshes(cam, raslight->GetShadowLayer());
+			/* binds framebuffer object */
+			raslight->BindShadowBuffer();
+			/* render */
+			m_rasterizer->Clear(RAS_Rasterizer::RAS_DEPTH_BUFFER_BIT | RAS_Rasterizer::RAS_COLOR_BUFFER_BIT);
 
-				m_logger.StartLog(tc_animations, m_kxsystem->GetTimeInSeconds());
-				UpdateAnimations(scene);
-				m_logger.StartLog(tc_rasterizer, m_kxsystem->GetTimeInSeconds());
+			const mt::mat3x4 camtrans = mt::mat4::ToAffineTransform(viewmat).Inverse();
+			// Send a nullptr off screen because the viewport is binding it's using its own private one.
+			scene->RenderBuckets(objects, RAS_Rasterizer::RAS_SHADOW, camtrans, m_rasterizer, nullptr);
 
-				/* render */
-				m_rasterizer->Clear(RAS_Rasterizer::RAS_DEPTH_BUFFER_BIT | RAS_Rasterizer::RAS_COLOR_BUFFER_BIT);
-				// Send a nullptr off screen because the viewport is binding it's using its own private one.
-				scene->RenderBuckets(objects, RAS_Rasterizer::RAS_SHADOW, camtrans, m_rasterizer, nullptr);
-
-				/* unbind framebuffer object, restore drawmode, free camera */
-				raslight->UnbindShadowBuffer();
-				cam->Release();
-			}
+			/* unbind framebuffer object, free camera */
+			raslight->UnbindShadowBuffer();
 		}
 	}
 }
