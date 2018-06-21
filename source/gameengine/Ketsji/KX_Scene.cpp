@@ -1087,8 +1087,13 @@ void KX_Scene::PhysicsCullingCallback(KX_ClientObjectInfo *objectInfo, void *cul
 
 std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(KX_Camera *cam, int layer)
 {
+	return CalculateVisibleMeshes(cam->GetFrustumCulling(), cam->GetFrustum(), layer);
+}
+
+std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(bool frustumCulling, const SG_Frustum& frustum, int layer)
+{
 	std::vector<KX_GameObject *> objects;
-	if (!cam->GetFrustumCulling()) {
+	if (!frustumCulling) {
 		for (KX_GameObject *gameobj : m_objectlist) {
 			gameobj->GetCullingNode().SetCulled(false);
 			objects.push_back(gameobj);
@@ -1096,7 +1101,7 @@ std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(KX_Camera *cam, in
 		return objects;
 	}
 
-	return CalculateVisibleMeshes(cam->GetFrustum(), layer);
+	return CalculateVisibleMeshes(frustum, layer);
 }
 
 std::vector<KX_GameObject *> KX_Scene::CalculateVisibleMeshes(const SG_Frustum& frustum, int layer)
@@ -1422,11 +1427,13 @@ void KX_Scene::RenderTextureRenderers(KX_TextureRendererManager::RendererCategor
 
 void KX_Scene::UpdateObjectLods(KX_Camera *cam, const std::vector<KX_GameObject *>& objects)
 {
-	const mt::vec3& cam_pos = cam->NodeGetWorldPosition();
-	const float lodfactor = cam->GetLodDistanceFactor();
+	UpdateObjectLods(cam->NodeGetWorldPosition(), cam->GetLodDistanceFactor(), objects);
+}
 
+void KX_Scene::UpdateObjectLods(const mt::vec3& camPos, float lodFactor, const std::vector<KX_GameObject *>& objects)
+{
 	for (KX_GameObject *gameobj : objects) {
-		gameobj->UpdateLod(this, cam_pos, lodfactor);
+		gameobj->UpdateLod(this, camPos, lodFactor);
 	}
 }
 

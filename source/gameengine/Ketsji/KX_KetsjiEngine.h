@@ -38,9 +38,11 @@
 #include "KX_TimeCategoryLogger.h"
 #include "EXP_Python.h"
 #include "KX_WorldInfo.h"
+#include "SG_Frustum.h"
 #include "RAS_CameraData.h"
 #include "RAS_Rasterizer.h"
 #include "RAS_DebugDraw.h"
+#include "RAS_FramingManager.h"
 #include <vector>
 
 struct TaskScheduler;
@@ -111,24 +113,26 @@ public:
 private:
 	struct CameraRenderData
 	{
-		CameraRenderData(KX_Camera *rendercam, KX_Camera *cullingcam, const RAS_Rect& area, const RAS_Rect& viewport,
-				RAS_Rasterizer::StereoMode stereoMode, RAS_Rasterizer::StereoEye eye);
-		CameraRenderData(const CameraRenderData& other);
-		~CameraRenderData();
+		mt::mat4 m_viewMatrix;
+		mt::mat4 m_progMatrix;
+		mt::mat3x4 m_camTrans;
+		mt::vec3 m_position;
+		bool m_negScale;
 
-		/// Rendered camera, could be a temporary camera in case of stereo.
-		KX_Camera *m_renderCamera;
-		KX_Camera *m_cullingCamera;
+		SG_Frustum m_frustum;
+		bool m_culling;
+
 		RAS_Rect m_area;
 		RAS_Rect m_viewport;
+
+		float m_lodFactor;
+
 		RAS_Rasterizer::StereoMode m_stereoMode;
 		RAS_Rasterizer::StereoEye m_eye;
 	};
 
 	struct SceneRenderData
 	{
-		SceneRenderData(KX_Scene *scene);
-
 		KX_Scene *m_scene;
 		std::vector<CameraRenderData> m_cameraDataList;
 	};
@@ -136,16 +140,13 @@ private:
 	/// Data used to render a frame.
 	struct FrameRenderData
 	{
-		FrameRenderData(RAS_Rasterizer::OffScreenType ofsType);
-
 		RAS_Rasterizer::OffScreenType m_ofsType;
 		std::vector<SceneRenderData> m_sceneDataList;
 	};
 
 	struct RenderData
 	{
-		RenderData(RAS_Rasterizer::StereoMode stereoMode, bool renderPerEye);
-
+		RAS_FrameSettings m_frameSettings;
 		RAS_Rasterizer::StereoMode m_stereoMode;
 		bool m_renderPerEye;
 		std::vector<FrameRenderData> m_frameDataList;
@@ -276,6 +277,8 @@ private:
 			RAS_Rasterizer::StereoEye eye, const RAS_Rect& viewport, const RAS_Rect& area) const;
 	CameraRenderData GetCameraRenderData(KX_Scene *scene, KX_Camera *camera, KX_Camera *overrideCullingCam, const RAS_Rect& displayArea,
 			RAS_Rasterizer::StereoMode stereoMode, RAS_Rasterizer::StereoEye eye);
+	FrameRenderData GetShadowRenderData();
+	FrameRenderData GetFrameRenderData(RAS_Rasterizer::StereoMode stereoMode, bool useStereo, bool renderPerEye, unsigned short index);
 	/// Compute frame render data per eyes (in case of stereo), scenes and camera.
 	RenderData GetRenderData();
 

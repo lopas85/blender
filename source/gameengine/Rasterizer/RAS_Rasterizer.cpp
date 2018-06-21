@@ -829,6 +829,11 @@ void RAS_Rasterizer::SetViewMatrix(mt::mat4 viewmat, const mt::vec3& scale)
 	SetViewMatrix(viewmat, negscale);
 }
 
+void RAS_Rasterizer::SetViewport(const RAS_Rect& area)
+{
+	SetViewport(area.GetLeft(), area.GetBottom(), area.GetWidth(), area.GetHeight());
+}
+
 void RAS_Rasterizer::SetViewport(int x, int y, int width, int height)
 {
 	m_impl->SetViewport(x, y, width, height);
@@ -837,6 +842,11 @@ void RAS_Rasterizer::SetViewport(int x, int y, int width, int height)
 void RAS_Rasterizer::GetViewport(int *rect)
 {
 	m_impl->GetViewport(rect);
+}
+
+void RAS_Rasterizer::SetScissor(const RAS_Rect& area)
+{
+	SetScissor(area.GetLeft(), area.GetBottom(), area.GetWidth(), area.GetHeight());
 }
 
 void RAS_Rasterizer::SetScissor(int x, int y, int width, int height)

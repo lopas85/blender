@@ -355,6 +355,7 @@ public:
 	KX_WorldInfo *GetWorldInfo() const;
 
 	std::vector<KX_GameObject *> CalculateVisibleMeshes(KX_Camera *cam, int layer);
+	std::vector<KX_GameObject *> CalculateVisibleMeshes(bool frustumCulling, const SG_Frustum& frustum, int layer);
 	std::vector<KX_GameObject *> CalculateVisibleMeshes(const SG_Frustum& frustum, int layer);
 
 	RAS_DebugDraw& GetDebugDraw();
@@ -375,6 +376,7 @@ public:
 
 	/// Update the mesh for objects based on level of detail settings
 	void UpdateObjectLods(KX_Camera *cam, const std::vector<KX_GameObject *>& objects);
+	void UpdateObjectLods(const mt::vec3& camPos, float lodFactor, const std::vector<KX_GameObject *>& objects);
 
 	// LoD Hysteresis functions
 	void SetLodHysteresis(bool active);
