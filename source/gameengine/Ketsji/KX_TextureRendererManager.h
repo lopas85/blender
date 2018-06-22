@@ -41,18 +41,9 @@ class RAS_Rect;
 
 class KX_TextureRendererManager
 {
-public:
-	enum RendererCategory {
-		VIEWPORT_DEPENDENT = 0,
-		VIEWPORT_INDEPENDENT,
-		CATEGORY_MAX
-	};
-
 private:
-	/// All existing renderers of this scene by categories.
-	std::vector<KX_TextureRenderer *> m_renderers[CATEGORY_MAX];
-	/// The camera used for renderers render, it's own by the renderer manager.
-	KX_Camera *m_camera;
+	/// All existing renderers of this scene.
+	std::vector<KX_TextureRenderer *> m_renderers;
 	/// The scene we are rendering for.
 	KX_Scene *m_scene;
 

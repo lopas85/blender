@@ -42,29 +42,20 @@
 KX_TextureRendererManager::KX_TextureRendererManager(KX_Scene *scene)
 	:m_scene(scene)
 {
-	const RAS_CameraData& camdata = RAS_CameraData();
-	m_camera = new KX_Camera(m_scene, KX_Scene::m_callbacks, camdata, true);
-	m_camera->SetName("__renderer_cam__");
 }
 
 KX_TextureRendererManager::~KX_TextureRendererManager()
 {
-	for (unsigned short i = 0; i < CATEGORY_MAX; ++i) {
-		for (KX_TextureRenderer *renderer : m_renderers[i]) {
-			delete renderer;
-		}
+	for (KX_TextureRenderer *renderer : m_renderers) {
+		delete renderer;
 	}
-
-	m_camera->Release();
 }
 
 void KX_TextureRendererManager::InvalidateViewpoint(KX_GameObject *gameobj)
 {
-	for (unsigned short i = 0; i < CATEGORY_MAX; ++i) {
-		for (KX_TextureRenderer *renderer : m_renderers[i]) {
-			if (renderer->GetViewpointObject() == gameobj) {
-				renderer->SetViewpointObject(nullptr);
-			}
+	for (KX_TextureRenderer *renderer : m_renderers) {
+		if (renderer->GetViewpointObject() == gameobj) {
+			renderer->SetViewpointObject(nullptr);
 		}
 	}
 }
@@ -74,18 +65,16 @@ void KX_TextureRendererManager::AddRenderer(RendererType type, RAS_Texture *text
 	/* Don't Add renderer several times for the same texture. If the texture is shared by several objects,
 	 * we just add a "textureUser" to signal that the renderer texture will be shared by several objects.
 	 */
-	for (unsigned short i = 0; i < CATEGORY_MAX; ++i) {
-		for (KX_TextureRenderer *renderer : m_renderers[i]) {
-			if (renderer->EqualTextureUser(texture)) {
-				renderer->AddTextureUser(texture);
+	for (KX_TextureRenderer *renderer : m_renderers) {
+		if (renderer->EqualTextureUser(texture)) {
+			renderer->AddTextureUser(texture);
 
-				KX_GameObject *origviewpoint = renderer->GetViewpointObject();
-				if (viewpoint != origviewpoint) {
-					CM_Warning("texture renderer (" << texture->GetName() << ") uses different viewpoint objects (" <<
-					           (origviewpoint ? origviewpoint->GetName() : "<None>") << " and " << viewpoint->GetName() << ").");
-				}
-				return;
+			KX_GameObject *origviewpoint = renderer->GetViewpointObject();
+			if (viewpoint != origviewpoint) {
+				CM_Warning("texture renderer (" << texture->GetName() << ") uses different viewpoint objects (" <<
+				           (origviewpoint ? origviewpoint->GetName() : "<None>") << " and " << viewpoint->GetName() << ").");
 			}
+			return;
 		}
 	}
 
@@ -95,17 +84,16 @@ void KX_TextureRendererManager::AddRenderer(RendererType type, RAS_Texture *text
 		case CUBE:
 		{
 			renderer = new KX_CubeMap(env, viewpoint);
-			m_renderers[VIEWPORT_INDEPENDENT].push_back(renderer);
 			break;
 		}
 		case PLANAR:
 		{
 			renderer = new KX_PlanarMap(env, viewpoint);
-			m_renderers[VIEWPORT_DEPENDENT].push_back(renderer);
 			break;
 		}
 	}
 
+	m_renderers.push_back(renderer);
 	renderer->AddTextureUser(texture);
 }
 
@@ -118,8 +106,9 @@ bool KX_TextureRendererManager::RenderRenderer(RAS_Rasterizer *rasty, KX_Texture
 		return false;
 	}
 
+	mt::mat3x4 trans;
 	// Set camera setting shared by all the renderer's faces.
-	if (!renderer->SetupCamera(sceneCamera, m_camera)) {
+	if (!renderer->SetupCamera(sceneCamera, trans)) {
 		return false;
 	}
 
@@ -129,15 +118,11 @@ bool KX_TextureRendererManager::RenderRenderer(RAS_Rasterizer *rasty, KX_Texture
 	 */
 	viewpoint->SetVisible(false, false);
 
-	// Set camera lod distance factor from renderer value.
-	m_camera->SetLodDistanceFactor(renderer->GetLodDistanceFactor());
-
 	/* When we update clipstart or clipend values,
 	 * or if the projection matrix is not computed yet,
 	 * we have to compute projection matrix.
 	 */
 	const mt::mat4& projmat = renderer->GetProjectionMatrix(rasty, m_scene, sceneCamera, viewport, area);
-	m_camera->SetProjectionMatrix(projmat);
 	rasty->SetProjectionMatrix(projmat);
 
 	// Begin rendering stuff
@@ -145,26 +130,23 @@ bool KX_TextureRendererManager::RenderRenderer(RAS_Rasterizer *rasty, KX_Texture
 
 	for (unsigned short i = 0; i < renderer->GetNumFaces(); ++i) {
 		// Set camera settings unique per faces.
-		if (!renderer->SetupCameraFace(m_camera, i)) {
+		if (!renderer->SetupCameraFace(i, trans)) {
 			continue;
 		}
 
-		m_camera->NodeUpdate();
-
 		renderer->BindFace(i);
 
-		const mt::mat3x4 camtrans(m_camera->GetWorldToCamera());
-		const mt::mat4 viewmat = mt::mat4::FromAffineTransform(camtrans);
+		const mt::mat4 viewmat = mt::mat4::FromAffineTransform(trans).Inverse();
 
 		rasty->SetViewMatrix(viewmat);
-		m_camera->SetModelviewMatrix(viewmat);
 
-		const std::vector<KX_GameObject *> objects = m_scene->CalculateVisibleMeshes(m_camera, ~renderer->GetIgnoreLayers());
+		const SG_Frustum frustum(projmat * viewmat);
+		const std::vector<KX_GameObject *> objects = m_scene->CalculateVisibleMeshes(frustum, ~renderer->GetIgnoreLayers());
 
 		/* Updating the lod per face is normally not expensive because a cube map normally show every objects
 		 * but here we update only visible object of a face including the clip end and start.
 		 */
-		m_scene->UpdateObjectLods(m_camera, objects);
+		m_scene->UpdateObjectLods(trans.TranslationVector3D(), renderer->GetLodDistanceFactor(), objects);
 
 		/* Update animations to use the culling of each faces, BL_ActionManager avoid redundants
 		 * updates internally. */
@@ -175,7 +157,7 @@ bool KX_TextureRendererManager::RenderRenderer(RAS_Rasterizer *rasty, KX_Texture
 		// Now the objects are culled and we can render the scene.
 		m_scene->GetWorldInfo()->RenderBackground(rasty);
 		// Send a nullptr off screen because we use a set of FBO with shared textures, not an off screen.
-		m_scene->RenderBuckets(objects, RAS_Rasterizer::RAS_RENDERER, camtrans, rasty, nullptr);
+		m_scene->RenderBuckets(objects, RAS_Rasterizer::RAS_RENDERER, trans, rasty, nullptr);
 
 		renderer->EndRenderFace(rasty);
 	}
@@ -214,8 +196,6 @@ void KX_TextureRendererManager::Render(RendererCategory category, RAS_Rasterizer
 
 void KX_TextureRendererManager::Merge(KX_TextureRendererManager *other)
 {
-	for (unsigned short i = 0; i < CATEGORY_MAX; ++i) {
-		m_renderers[i].insert(m_renderers[i].end(), other->m_renderers[i].begin(), other->m_renderers[i].end());
-		other->m_renderers[i].clear();
-	}
+	m_renderers.insert(m_renderers.end(), other->m_renderers.begin(), other->m_renderers.end());
+	other->m_renderers.clear();
 }

@@ -56,8 +56,8 @@ public:
 	virtual const mt::mat4& GetProjectionMatrix(RAS_Rasterizer *rasty, KX_Scene *scene, KX_Camera *sceneCamera,
 													const RAS_Rect& viewport, const RAS_Rect& area);
 
-	virtual bool SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera);
-	virtual bool SetupCameraFace(KX_Camera *camera, unsigned short index);
+	virtual bool SetupCamera(KX_Camera *sceneCamera, mt::mat3x4& trans);
+	virtual bool SetupCameraFace(unsigned short index, mt::mat3x4& trans);
 };
 
 #endif  // __KX_CUBEMAP_H__

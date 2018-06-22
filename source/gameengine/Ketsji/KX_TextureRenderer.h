@@ -95,10 +95,10 @@ public:
 	// Return true when the texture renderer need to be updated.
 	bool NeedUpdate();
 
-	/// Setup camera position and orientation shared by all the faces, returns true when the render will be made.
-	virtual bool SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera) = 0;
-	/// Setup camera position and orientation unique per faces, returns true when the render will be made.
-	virtual bool SetupCameraFace(KX_Camera *camera, unsigned short index) = 0;
+	/// Setup camera transform shared by all the faces, returns true when the render will be proceeded.
+	virtual bool SetupCamera(KX_Camera *sceneCamera, mt::mat3x4& trans) = 0;
+	/// Setup camera transform unique per faces, returns true when the render will be proceeded.
+	virtual bool SetupCameraFace(unsigned short index, mt::mat3x4& trans) = 0;
 
 #ifdef WITH_PYTHON
 	EXP_PYMETHOD_DOC_NOARGS(KX_TextureRenderer, update);

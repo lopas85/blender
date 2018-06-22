@@ -171,7 +171,7 @@ void KX_PlanarMap::SetNormal(const mt::vec3& normal)
 	m_normal = normal.Normalized();
 }
 
-bool KX_PlanarMap::SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera)
+bool KX_PlanarMap::SetupCamera(KX_Camera *sceneCamera, mt::mat3x4& trans)
 {
 	KX_GameObject *mirror = GetViewpointObject();
 
@@ -210,14 +210,12 @@ bool KX_PlanarMap::SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera)
 		cameraWorldOri = cameraWorldOri.Transpose();
 	}
 
-	// Set render camera position and orientation.
-	camera->NodeSetWorldPosition(cameraWorldPos);
-	camera->NodeSetGlobalOrientation(cameraWorldOri);
+	trans = mt::mat3x4(cameraWorldOri, cameraWorldPos);
 
 	return true;
 }
 
-bool KX_PlanarMap::SetupCameraFace(KX_Camera *camera, unsigned short index)
+bool KX_PlanarMap::SetupCameraFace(unsigned short index, mt::mat3x4& trans)
 {
 	return true;
 }

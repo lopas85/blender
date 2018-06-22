@@ -66,8 +66,8 @@ public:
 	const mt::vec3& GetNormal() const;
 	void SetNormal(const mt::vec3& normal);
 
-	virtual bool SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera);
-	virtual bool SetupCameraFace(KX_Camera *camera, unsigned short index);
+	virtual bool SetupCamera(KX_Camera *sceneCamera, mt::mat3x4& trans);
+	virtual bool SetupCameraFace(unsigned short index, mt::mat3x4& trans);
 
 #ifdef WITH_PYTHON
 	static PyObject *pyattr_get_normal(EXP_PyObjectPlus *self_v, const EXP_PYATTRIBUTE_DEF *attrdef);

@@ -506,12 +506,6 @@ KX_KetsjiEngine::CameraRenderData KX_KetsjiEngine::GetCameraRenderData(KX_Scene 
 	return cameraData;
 }
 
-KX_KetsjiEngine::FrameRenderData KX_KetsjiEngine::GetShadowRenderData()
-{
-	FrameRenderData frameData;
-	return frameData;
-}
-
 KX_KetsjiEngine::FrameRenderData KX_KetsjiEngine::GetFrameRenderData(RAS_Rasterizer::StereoMode stereoMode, bool useStereo, bool renderPerEye, unsigned short index)
 {
 	// The off screen corresponding to the frame.
@@ -601,13 +595,6 @@ void KX_KetsjiEngine::Render()
 
 	BeginFrame();
 
-	for (KX_Scene *scene : m_scenes) {
-		// shadow buffers
-		RenderShadowBuffers(scene);
-		// Render only independent texture renderers here.
-		scene->RenderTextureRenderers(KX_TextureRendererManager::VIEWPORT_INDEPENDENT, m_rasterizer, nullptr, nullptr, RAS_Rect(), RAS_Rect());
-	}
-
 	// Update all off screen to the current canvas size.
 	m_rasterizer->UpdateOffScreens(m_canvas);
 
@@ -647,6 +634,13 @@ void KX_KetsjiEngine::Render()
 			scene->GetWorldInfo()->UpdateWorldSettings(m_rasterizer);
 
 			m_rasterizer->SetAuxilaryClientInfo(scene);
+
+			if (!sceneFrameData.m_textureDataList.empty()) {
+				for (const TextureRenderData& textureData : sceneFrameData.m_textureDataList) {
+					RenderTexture(scene, textureData);
+				}
+				offScreen->Bind();
+			}
 
 			// Draw the scene once for each camera with an enabled viewport or an active camera.
 			for (const CameraRenderData& cameraFrameData : sceneFrameData.m_cameraDataList) {

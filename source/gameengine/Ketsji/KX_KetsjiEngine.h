@@ -111,6 +111,27 @@ public:
 	};
 
 private:
+	// Storing information for off screen rendering of shadow and texture map.
+	struct TextureRenderData
+	{
+		enum {
+			RENDER_WORLD,
+			UPDATE_LOD
+		} m_mode;
+
+		mt::mat4 m_viewMatrix;
+		mt::mat4 m_progMatrix;
+		mt::mat3x4 m_camTrans;
+		mt::vec3 m_position;
+
+		SG_Frustum m_frustum;
+
+		float m_lodFactor;
+
+		std::function<void (unsigned short)> m_bind;
+		std::function<void (unsigned short)> m_unbind;
+	};
+
 	struct CameraRenderData
 	{
 		mt::mat4 m_viewMatrix;
@@ -134,6 +155,7 @@ private:
 	struct SceneRenderData
 	{
 		KX_Scene *m_scene;
+		std::vector<TextureRenderData> m_textureDataList;
 		std::vector<CameraRenderData> m_cameraDataList;
 	};
 
@@ -277,7 +299,6 @@ private:
 			RAS_Rasterizer::StereoEye eye, const RAS_Rect& viewport, const RAS_Rect& area) const;
 	CameraRenderData GetCameraRenderData(KX_Scene *scene, KX_Camera *camera, KX_Camera *overrideCullingCam, const RAS_Rect& displayArea,
 			RAS_Rasterizer::StereoMode stereoMode, RAS_Rasterizer::StereoEye eye);
-	FrameRenderData GetShadowRenderData();
 	FrameRenderData GetFrameRenderData(RAS_Rasterizer::StereoMode stereoMode, bool useStereo, bool renderPerEye, unsigned short index);
 	/// Compute frame render data per eyes (in case of stereo), scenes and camera.
 	RenderData GetRenderData();

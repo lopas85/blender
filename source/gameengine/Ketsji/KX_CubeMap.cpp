@@ -103,19 +103,19 @@ const mt::mat4& KX_CubeMap::GetProjectionMatrix(RAS_Rasterizer *rasty, KX_Scene 
 	return m_projection;
 }
 
-bool KX_CubeMap::SetupCamera(KX_Camera *sceneCamera, KX_Camera *camera)
+bool KX_CubeMap::SetupCamera(KX_Camera *sceneCamera, mt::mat3x4& trans)
 {
-	KX_GameObject *viewpoint = GetViewpointObject();
-	const mt::vec3& position = viewpoint->NodeGetWorldPosition();
-
-	camera->NodeSetWorldPosition(position);
+	trans.GetColumn(3) = GetViewpointObject()->NodeGetWorldPosition();
 
 	return true;
 }
 
-bool KX_CubeMap::SetupCameraFace(KX_Camera *camera, unsigned short index)
+bool KX_CubeMap::SetupCameraFace(unsigned short index, mt::mat3x4& trans)
 {
-	camera->NodeSetGlobalOrientation(faceViewMatrices3x3[index]);
+	const mt::mat3& view = faceViewMatrices3x3[index];
+	for (unsigned short i = 0; i < 3; ++i) {
+		trans.GetColumn(i) = view.GetColumn(i);
+	}
 
 	return true;
 }
