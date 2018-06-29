@@ -70,6 +70,8 @@ public:
 
 	enum {MaxUnits = 8};
 
+	void ApplyRenderer(unsigned short viewportIndex);
+	virtual void UpdateBindCode() = 0;
 	virtual void CheckValidTexture() = 0;
 	virtual void ActivateTexture(int unit) = 0;
 	virtual void DisableTexture() = 0;

@@ -40,6 +40,8 @@ private:
 	bool m_isCubeMap;
 	MTex *m_mtex;
 	GPUTexture *m_gpuTex;
+	int m_imaTarget;
+	int m_target;
 
 	struct {
 		unsigned int bindcode;
@@ -81,6 +83,7 @@ public:
 
 	enum {MaxUnits = 8};
 
+	virtual void UpdateBindCode();
 	virtual void CheckValidTexture();
 	virtual void ActivateTexture(int unit);
 	virtual void DisableTexture();
