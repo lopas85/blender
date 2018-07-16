@@ -96,6 +96,9 @@
 #include "KX_NavMeshObject.h"
 #include "KX_ObstacleSimulation.h"
 
+#include "LOG_Node.h"
+#include "LOG_Tree.h"
+
 #include "BL_BlenderDataConversion.h"
 #include "BL_Texture.h"
 #include "BL_SceneConverter.h"
@@ -160,6 +163,7 @@ extern "C" {
 #  include "BKE_image.h"
 #  include "IMB_imbuf_types.h"
 #  include "BKE_displist.h"
+#  include "BKE_node.h"
 
 extern Material defmaterial;
 }
@@ -1163,7 +1167,8 @@ static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderob
 		}
 		else {
 			KX_PythonComponent *comp = static_cast<KX_PythonComponent *>(EXP_PROXY_REF(pycomp));
-			comp->SetBlenderPythonComponent(pc);
+			PyObject *arg_dict = (PyObject *)BKE_python_component_argument_dict_new(pc);
+			comp->SetStartArgs(arg_dict);
 			comp->SetGameObject(gameobj);
 			components->Add(comp);
 		}
@@ -1178,6 +1183,48 @@ static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderob
 
 	gameobj->SetComponents(components);
 #endif  // WITH_PYTHON
+}
+
+static LOG_Node *BL_ConvertLogicNode(bNode *bnode)
+{
+	CM_Debug("convert node " << bnode->idname);
+
+	
+
+	for (bNodeSocket *out = (bNodeSocket *)bnode->outputs.first; out; out = out->next) {
+		if (out->link) {
+			bNode *child = out->link->tonode;
+			BL_ConvertLogicNode(child);
+		}
+		else {
+			// Convert the value
+		}
+	}
+
+	return nullptr;
+}
+
+static void BL_ConvertLogicNodesObject(KX_GameObject *gameobj, Object *blenderobj)
+{
+#ifdef WITH_PYTHON
+
+	bNodeTree *btree = blenderobj->logicNodeTree;
+	if (!btree) {
+		return;
+	}
+
+	btree->update |= NTREE_UPDATE_LINKS;
+	ntreeUpdateTree(G.main, btree); // TODO check G.main for libloading.
+
+	bNode *broot = ntreeFindType(btree, LOGIC_NODE_ROOT);
+	if (!broot) {
+		CM_Warning("object \"" << gameobj->GetName() << "\" has a logic tree without root node, the logic is ignored.");
+		return;
+	}
+
+	LOG_Node *root = BL_ConvertLogicNode(broot);
+
+#endif
 }
 
 /* helper for BL_ConvertBlenderObjects, avoids code duplication
@@ -1797,11 +1844,13 @@ void BL_ConvertBlenderObjects(struct Main *maggie,
 		for (KX_GameObject *gameobj : sumolist) {
 			Object *blenderobj = gameobj->GetBlenderObject();
 			BL_ConvertComponentsObject(gameobj, blenderobj);
+			BL_ConvertLogicNodesObject(gameobj, blenderobj);
 		}
 
 		for (KX_GameObject *gameobj : objectlist) {
 			if (gameobj->GetComponents()) {
 				// Register object for component update.
+				// TODO register in logic manager for component and nodes.
 				kxscene->GetPythonComponentManager().RegisterObject(gameobj);
 			}
 		}
