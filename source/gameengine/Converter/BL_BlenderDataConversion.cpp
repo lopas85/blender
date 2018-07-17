@@ -1156,9 +1156,7 @@ static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderob
 			continue;
 		}
 
-		// Every thing checks out, now generate the args dictionary and init the component
-		args = PyTuple_Pack(1, gameobj->GetProxy());
-
+		args = PyTuple_New(0);
 		pycomp = PyObject_Call(cls, args, nullptr);
 
 		if (PyErr_Occurred()) {
@@ -1185,23 +1183,37 @@ static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderob
 #endif  // WITH_PYTHON
 }
 
-static LOG_Node *BL_ConvertLogicNode(bNode *bnode)
+static LOG_Node *BL_ConvertLogicNode(bNode *bnode, PyObject *mod, KX_GameObject *gameobj)
 {
 	CM_Debug("convert node " << bnode->idname);
 
-	
+	PyObject *cls = PyObject_GetAttrString(mod, bnode->idname);
+	if (!cls) {
+		CM_Error("could not find node class \"" << bnode->idname << "\"");
+	}
+
+	PyObject *args = PyTuple_New(0);
+	PyObject *pynode = PyObject_Call(cls, args, nullptr);
+
+	if (PyErr_Occurred()) {
+		PyErr_Print();
+		return nullptr;
+	}
+
+	LOG_Node *node = static_cast<LOG_Node *>(EXP_PROXY_REF(pynode));
+	node->SetGameObject(gameobj);
 
 	for (bNodeSocket *out = (bNodeSocket *)bnode->outputs.first; out; out = out->next) {
 		if (out->link) {
 			bNode *child = out->link->tonode;
-			BL_ConvertLogicNode(child);
+			BL_ConvertLogicNode(child, mod, gameobj);
 		}
 		else {
 			// Convert the value
 		}
 	}
 
-	return nullptr;
+	return node;
 }
 
 static void BL_ConvertLogicNodesObject(KX_GameObject *gameobj, Object *blenderobj)
@@ -1213,6 +1225,8 @@ static void BL_ConvertLogicNodesObject(KX_GameObject *gameobj, Object *blenderob
 		return;
 	}
 
+	PyObject *mod = PyImport_ImportModule("bge.nodes");
+
 	btree->update |= NTREE_UPDATE_LINKS;
 	ntreeUpdateTree(G.main, btree); // TODO check G.main for libloading.
 
@@ -1222,7 +1236,9 @@ static void BL_ConvertLogicNodesObject(KX_GameObject *gameobj, Object *blenderob
 		return;
 	}
 
-	LOG_Node *root = BL_ConvertLogicNode(broot);
+	LOG_Node *root = BL_ConvertLogicNode(broot, mod, gameobj);
+
+	Py_DECREF(mod);
 
 #endif
 }
