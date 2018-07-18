@@ -1113,9 +1113,9 @@ static void BL_SetBlenderSceneBackground(Scene *blenderscene)
 	}
 }
 
+#ifdef WITH_PYTHON
 static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderobj)
 {
-#ifdef WITH_PYTHON
 	PythonComponent *pc = (PythonComponent *)blenderobj->components.first;
 	PyObject *arg_dict = nullptr, *args = nullptr, *mod = nullptr, *cls = nullptr, *pycomp = nullptr, *ret = nullptr;
 
@@ -1190,8 +1190,8 @@ static void BL_ConvertComponentsObject(KX_GameObject *gameobj, Object *blenderob
 	Py_XDECREF(pycomp);
 
 	gameobj->SetComponents(components);
-#endif  // WITH_PYTHON
 }
+#endif  // WITH_PYTHON
 
 /* helper for BL_ConvertBlenderObjects, avoids code duplication
  * note: all var names match args are passed from the caller */
@@ -1862,6 +1862,14 @@ void BL_ConvertBlenderObjects(struct Main *maggie,
 		gameobj->ResetState();
 	}
 
+#ifdef WITH_PYTHON
+
+	/* Lock the GIL in case of async libloading.
+	 * example : https://gist.github.com/liuyu81/3473376
+	 */
+	Py_BEGIN_ALLOW_THREADS;
+	Py_BLOCK_THREADS;
+
 	// Convert the python components of each object if the component execution is available.
 	if (G.f & G_SCRIPT_AUTOEXEC) {
 		for (KX_GameObject *gameobj : sumolist) {
@@ -1879,6 +1887,12 @@ void BL_ConvertBlenderObjects(struct Main *maggie,
 	else {
 		CM_Warning("Python components auto-execution disabled");
 	}
+
+	Py_UNBLOCK_THREADS;
+	Py_END_ALLOW_THREADS;
+
+#endif  // WITH_PYTHON
+
 
 	// Cleanup converted set of group objects.
 	convertedlist->Release();
