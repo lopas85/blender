@@ -31,6 +31,7 @@
 
 #include "RAS_Rasterizer.h"
 #include "RAS_OpenGLRasterizer.h"
+#include "RAS_OpenGLDebugDraw.h"
 #include "RAS_IPolygonMaterial.h"
 #include "RAS_DisplayArrayBucket.h"
 
@@ -216,6 +217,7 @@ RAS_Rasterizer::RAS_Rasterizer()
 	m_overrideShader(RAS_OVERRIDE_SHADER_NONE)
 {
 	m_impl.reset(new RAS_OpenGLRasterizer(this));
+	m_debugDrawImpl.reset(new RAS_OpenGLDebugDraw());
 
 	m_numgllights = m_impl->GetNumLights();
 
@@ -1379,6 +1381,11 @@ void RAS_Rasterizer::GetTransform(float *origmat, int objectdrawmode, float mat[
 			memcpy(mat, origmat, sizeof(float) * 16);
 		}
 	}
+}
+
+void RAS_Rasterizer::FlushDebug(RAS_ICanvas *canvas, RAS_DebugDraw *debugDraw)
+{
+	m_debugDrawImpl->Flush(this, canvas, debugDraw);
 }
 
 void RAS_Rasterizer::DisableForText()
