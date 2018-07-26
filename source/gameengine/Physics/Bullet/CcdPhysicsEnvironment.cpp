@@ -811,7 +811,7 @@ void CcdPhysicsEnvironment::ProcessFhSprings(double curTime, float interval)
 		if (body && (ctrl->GetConstructionInfo().m_do_fh || ctrl->GetConstructionInfo().m_do_rot_fh)) {
 			//re-implement SM_FhObject.cpp using btCollisionWorld::rayTest and info from ctrl->getConstructionInfo()
 			//send a ray from {0.0, 0.0, 0.0} towards {0.0, 0.0, -10.0}, in local coordinates
-			CcdPhysicsController *parentCtrl = ctrl->GetParentRoot();
+			CcdPhysicsController *parentCtrl = ctrl->GetParent();
 			btRigidBody *parentBody = parentCtrl ? parentCtrl->GetRigidBody() : nullptr;
 			btRigidBody *cl_object = parentBody ? parentBody : body;
 
@@ -3005,7 +3005,6 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 		// create the compound shape manually as we already have the child shape
 		btCompoundShape *compoundShape = new btCompoundShape();
 		compoundShape->addChildShape(shapeInfo->m_childTrans, bm);
-		compoundShape->setUserPointer(compoundShapeInfo);
 		// now replace the shape
 		bm = compoundShape;
 		shapeInfo->Release();
@@ -3033,7 +3032,6 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 		}
 	}
 #endif //TEST_SIMD_HULL
-
 
 	ci.m_collisionShape = bm;
 	ci.m_shapeInfo = shapeInfo;
@@ -3076,6 +3074,7 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 	ci.m_bSensor = isbulletsensor;
 	ci.m_bCharacter = isbulletchar;
 	ci.m_bGimpact = useGimpact;
+	ci.m_isCompound = hasCompoundChildren;
 	mt::vec3 scaling = gameobj->NodeGetWorldScaling();
 	ci.m_scaling.setValue(scaling[0], scaling[1], scaling[2]);
 	CcdPhysicsController *physicscontroller = new CcdPhysicsController(ci);
@@ -3114,7 +3113,14 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 	}
 
 	CcdPhysicsController *parentCtrl = parentRoot ? static_cast<CcdPhysicsController *>(parentRoot->GetPhysicsController()) : nullptr;
-	physicscontroller->SetParentRoot(parentCtrl);
+	physicscontroller->SetParent(parentCtrl);
+
+	if (isCompoundChild) {
+		CcdPhysicsController *compoundParentCtrl = (CcdPhysicsController *)compoundParent->GetPhysicsController();
+		BLI_assert(compoundParentCtrl);
+
+		compoundParentCtrl->AddCompoundChild(physicscontroller);
+	}
 }
 
 void CcdPhysicsEnvironment::SetupObjectConstraints(KX_GameObject *obj_src, KX_GameObject *obj_dest,

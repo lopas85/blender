@@ -79,59 +79,19 @@ public:
 		m_radius(1.0f),
 		m_height(1.0f),
 		m_halfExtend(0.0f, 0.0f, 0.0f),
-		m_childScale(1.0f, 1.0f, 1.0f),
-		m_userData(nullptr),
 		m_mesh(nullptr),
 		m_triangleIndexVertexArray(nullptr),
 		m_forceReInstance(false),
-		m_weldingThreshold1(0.0f),
-		m_shapeProxy(nullptr)
+		m_weldingThreshold1(0.0f)
 	{
 		m_childTrans.setIdentity();
 	}
 
 	~CcdShapeConstructionInfo();
 
-	void AddShape(CcdShapeConstructionInfo *shapeInfo);
-
 	btStridingMeshInterface *GetMeshInterface()
 	{
 		return m_triangleIndexVertexArray;
-	}
-
-	CcdShapeConstructionInfo *GetChildShape(int i)
-	{
-		if (i < 0 || i >= (int)m_shapeArray.size())
-			return nullptr;
-
-		return m_shapeArray.at(i);
-	}
-	int FindChildShape(CcdShapeConstructionInfo *shapeInfo, void *userData)
-	{
-		if (shapeInfo == nullptr)
-			return -1;
-		for (int i = 0; i < (int)m_shapeArray.size(); i++) {
-			CcdShapeConstructionInfo *childInfo = m_shapeArray.at(i);
-			if ((userData == nullptr || userData == childInfo->m_userData) &&
-			    (childInfo == shapeInfo ||
-			    (childInfo->m_shapeType == PHY_SHAPE_PROXY &&
-			    childInfo->m_shapeProxy == shapeInfo)))
-			{
-				return i;
-			}
-		}
-		return -1;
-	}
-
-	bool RemoveChildShape(int i)
-	{
-		if (i < 0 || i >= (int)m_shapeArray.size())
-			return false;
-		m_shapeArray.at(i)->Release();
-		if (i < (int)m_shapeArray.size() - 1)
-			m_shapeArray[i] = m_shapeArray.back();
-		m_shapeArray.pop_back();
-		return true;
 	}
 
 	bool UpdateMesh(class KX_GameObject *gameobj, class RAS_Mesh *mesh);
@@ -139,12 +99,6 @@ public:
 	CcdShapeConstructionInfo *GetReplica();
 
 	void ProcessReplica();
-
-	bool SetProxy(CcdShapeConstructionInfo *shapeInfo);
-	CcdShapeConstructionInfo *GetProxy(void)
-	{
-		return m_shapeProxy;
-	}
 
 	RAS_Mesh *GetMesh() const;
 
@@ -156,8 +110,6 @@ public:
 	btScalar m_height;
 	btVector3 m_halfExtend;
 	btTransform m_childTrans;
-	btVector3 m_childScale;
-	void *m_userData;
 
 	/** Vertex mapping from original vertex index to shape vertex index. */
 	std::vector<int> m_vertexRemap;
@@ -190,14 +142,10 @@ protected:
 	RAS_Mesh *m_mesh;
 	/// The list of vertexes and indexes for the triangle mesh, shared between Bullet shape.
 	btTriangleIndexVertexArray *m_triangleIndexVertexArray;
-	/// for compound shapes
-	std::vector<CcdShapeConstructionInfo *> m_shapeArray;
 	///use gimpact for concave dynamic/moving collision detection
 	bool m_forceReInstance;
 	///welding closeby vertices together can improve softbody stability etc.
 	float m_weldingThreshold1;
-	/// only used for PHY_SHAPE_PROXY, pointer to actual shape info
-	CcdShapeConstructionInfo *m_shapeProxy;
 };
 
 struct CcdConstructionInfo {
@@ -268,6 +216,7 @@ struct CcdConstructionInfo {
 		m_bSensor(false),
 		m_bCharacter(false),
 		m_bGimpact(false),
+		m_isCompound(false),
 		m_collisionFilterGroup(DynamicFilter),
 		m_collisionFilterMask(AllFilter),
 		m_collisionGroup(0xFFFF),
@@ -384,6 +333,7 @@ struct CcdConstructionInfo {
 	bool m_bCharacter;
 	/// use Gimpact for mesh body
 	bool m_bGimpact;
+	bool m_isCompound;
 
 	/** optional use of collision group/mask:
 	 * only collision with object goups that match the collision mask.
@@ -400,7 +350,7 @@ struct CcdConstructionInfo {
 	/** these pointers are used as argument passing for the CcdPhysicsController constructor
 	 * and not anymore after that
 	 */
-	class btCollisionShape *m_collisionShape;
+	btCollisionShape *m_collisionShape;
 	class PHY_IMotionState *m_MotionState;
 	class CcdShapeConstructionInfo *m_shapeInfo;
 
@@ -546,9 +496,9 @@ protected:
 
 	class PHY_IMotionState *m_MotionState;
 	btMotionState *m_bulletMotionState;
-	class btCollisionShape *m_collisionShape;
+	btCollisionShape *m_collisionShape;
+	btCompoundShape *m_compoundCollisionShape;
 	class CcdShapeConstructionInfo *m_shapeInfo;
-	btCollisionShape *m_bulletChildShape;
 
 	/// keep track of typed constraints referencing this rigid body
 	btAlignedObjectArray<btTypedConstraint *> m_ccdConstraintRefs;
@@ -566,7 +516,7 @@ protected:
 	int m_registerCount;            // needed when multiple sensors use the same controller
 	CcdConstructionInfo m_cci;//needed for replication
 
-	CcdPhysicsController *m_parentRoot;
+	CcdPhysicsController *m_parent;
 
 	int m_savedCollisionFlags;
 	short m_savedCollisionFilterGroup;
@@ -577,6 +527,7 @@ protected:
 
 	void GetWorldOrientation(btMatrix3x3& mat);
 
+	void CreateBody();
 	void CreateRigidbody();
 	bool CreateSoftbody();
 	bool CreateCharacterController();
@@ -610,7 +561,7 @@ public:
 	/**
 	 * Delete the current Bullet shape used in the rigid body.
 	 */
-	bool DeleteControllerShape();
+	void DeleteControllerShape();
 
 	/**
 	 * Delete the old Bullet shape and set the new Bullet shape : newShape
@@ -723,6 +674,8 @@ public:
 	virtual void SuspendDynamics(bool ghost);
 	virtual void RestoreDynamics();
 
+	/// Initialize a compound shape and add the previous shape as first child.
+	void InitCompoundShape();
 	// Shape control
 	virtual void AddCompoundChild(PHY_IPhysicsController *child);
 	virtual void RemoveCompoundChild(PHY_IPhysicsController *child);
@@ -829,14 +782,14 @@ public:
 		return m_cci.m_physicsEnv;
 	}
 
-	void SetParentRoot(CcdPhysicsController *parentCtrl)
+	void SetParent(CcdPhysicsController *parentCtrl)
 	{
-		m_parentRoot = parentCtrl;
+		m_parent = parentCtrl;
 	}
 
-	CcdPhysicsController *GetParentRoot() const
+	CcdPhysicsController *GetParent() const
 	{
-		return m_parentRoot;
+		return m_parent;
 	}
 
 	virtual bool IsDynamic()
@@ -853,7 +806,7 @@ public:
 
 	virtual bool IsCompound()
 	{
-		return GetConstructionInfo().m_shapeInfo->m_shapeType == PHY_SHAPE_COMPOUND;
+		return m_cci.m_isCompound;
 	}
 
 	virtual bool ReinstancePhysicsShape(KX_GameObject *from_gameobj, RAS_Mesh *from_meshobj, bool dupli = false);

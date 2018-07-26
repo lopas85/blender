@@ -400,7 +400,7 @@ void KX_GameObject::SetParent(KX_GameObject *obj, bool addToCompound, bool ghost
 	// step 0: verify this object has physical controller
 	if (m_physicsController && addToCompound) {
 		// step 1: find the top parent (not necessarily obj)
-		KX_GameObject *rootobj = (KX_GameObject *)parentSgNode->GetRootSGParent()->GetClientObject();
+		KX_GameObject *rootobj = (KX_GameObject *)parentSgNode->GetRootSGParent()->GetClientObject(); // TODO root compound
 		// step 2: verify it has a physical controller and compound shape
 		if (rootobj != nullptr &&
 		    rootobj->m_physicsController != nullptr &&
