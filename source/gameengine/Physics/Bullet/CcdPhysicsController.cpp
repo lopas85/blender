@@ -214,6 +214,7 @@ CcdPhysicsController::CcdPhysicsController(const CcdConstructionInfo& ci)
 	m_savedMass = 0.0f;
 	m_savedDyna = false;
 	m_suspended = false;
+	m_compoundChild = false;
 
 	CreateBody();
 }
@@ -843,20 +844,15 @@ void CcdPhysicsController::PostProcessReplica(class PHY_IMotionState *motionstat
 		m_cci.m_physicsEnv->AddCcdPhysicsController(this);
 	}
 
-	CcdPhysicsController *parentIt = m_parent;
-	CcdPhysicsController *compoundParent = nullptr;
-	while (parentIt) {
-		if (parentIt->IsCompound()) {
-			compoundParent = parentIt;
+	if (m_compoundChild) {
+		PHY_IPhysicsController *compoundParent = GetCompoundParent();
+		if (compoundParent) {
+			compoundParent->AddCompoundChild(this);
 		}
-		parentIt = parentIt->GetParent();
+		else {
+			m_compoundChild = false;
+		}
 	}
-
-	if (compoundParent) {
-		compoundParent->AddCompoundChild(this);
-	}
-
-	CM_Debug(this << ", " << compoundParent);
 }
 
 void CcdPhysicsController::SetPhysicsEnvironment(class PHY_IPhysicsEnvironment *env)
@@ -880,7 +876,7 @@ void CcdPhysicsController::SetPhysicsEnvironment(class PHY_IPhysicsEnvironment *
 	}
 }
 
-void CcdPhysicsController::SetCenterOfMassTransform(btTransform& xform)
+void CcdPhysicsController::SetCenterOfMassTransform(const btTransform& xform)
 {
 	btRigidBody *body = GetRigidBody();
 	if (body) {
@@ -1497,6 +1493,16 @@ bool CcdPhysicsController::WantsSleeping()
 	return true;
 }
 
+bool CcdPhysicsController::IsCompoundChild() const
+{
+	return m_compoundChild;
+}
+
+void CcdPhysicsController::SetCompoundChild(bool compound)
+{
+	m_compoundChild = compound;
+}
+
 void CcdPhysicsController::InitCompoundShape()
 {
 	// Create the compound shape manually as we already have the child shape.
@@ -1527,6 +1533,8 @@ void CcdPhysicsController::AddCompoundChild(PHY_IPhysicsController *child)
 	if (!childShape) {
 		return;
 	}
+
+	childCtrl->SetCompoundChild(true);
 
 	// compute relative transformation between parent and child
 	btTransform rootTrans;
@@ -1585,8 +1593,14 @@ void CcdPhysicsController::RemoveCompoundChild(PHY_IPhysicsController *child)
 		return;
 	}
 
+	childCtrl->SetCompoundChild(false);
+
 	for (unsigned short i = 0, numChildren = m_compoundCollisionShape->getNumChildShapes(); i < numChildren; i++) {
 		if (m_compoundCollisionShape->getChildShape(i) == childShape) {
+			// Apply the compound transform to the child object.
+			const btTransform childTrans = m_object->getWorldTransform() * m_compoundCollisionShape->getChildTransform(i);
+			childCtrl->SetCenterOfMassTransform(childTrans);
+
 			m_compoundCollisionShape->removeChildShapeByIndex(i);
 			m_compoundCollisionShape->recalculateLocalAabb();
 			break;
@@ -1651,6 +1665,20 @@ PHY_IPhysicsController *CcdPhysicsController::GetReplicaForSensors()
 bool CcdPhysicsController::IsPhysicsSuspended()
 {
 	return !GetPhysicsEnvironment()->IsActiveCcdPhysicsController(this);
+}
+
+PHY_IPhysicsController *CcdPhysicsController::GetCompoundParent() const
+{
+	PHY_IPhysicsController *parentIt = m_parent;
+	PHY_IPhysicsController *compoundParent = nullptr;
+	while (parentIt) {
+		if (parentIt->IsCompound()) {
+			compoundParent = parentIt;
+		}
+		parentIt = parentIt->GetParent();
+	}
+
+	return compoundParent;
 }
 
 /* Refresh the physics object from either an object or a mesh.

@@ -670,6 +670,7 @@ public:
 	virtual void SuspendDynamics(bool ghost);
 	virtual void RestoreDynamics();
 
+	void SetCompoundChild(bool compound);
 	/// Initialize a compound shape and add the previous shape as first child.
 	void InitCompoundShape();
 	// Shape control
@@ -759,7 +760,7 @@ public:
 
 	void UpdateDeactivation(float timeStep);
 
-	void SetCenterOfMassTransform(btTransform& xform);
+	void SetCenterOfMassTransform(const btTransform& xform);
 
 	static btTransform GetTransformFromMotionState(PHY_IMotionState *motionState);
 
@@ -778,15 +779,17 @@ public:
 		return m_cci.m_physicsEnv;
 	}
 
-	void SetParent(CcdPhysicsController *parentCtrl)
+	virtual void SetParent(PHY_IPhysicsController *parentCtrl)
 	{
-		m_parent = parentCtrl;
+		m_parent = static_cast<CcdPhysicsController *>(parentCtrl);
 	}
 
-	CcdPhysicsController *GetParent() const
+	virtual PHY_IPhysicsController *GetParent() const
 	{
 		return m_parent;
 	}
+
+	virtual PHY_IPhysicsController *GetCompoundParent() const;
 
 	virtual bool IsDynamic()
 	{
@@ -804,6 +807,8 @@ public:
 	{
 		return m_cci.m_isCompound;
 	}
+
+	virtual bool IsCompoundChild() const;
 
 	virtual bool ReinstancePhysicsShape(KX_GameObject *from_gameobj, RAS_Mesh *from_meshobj, bool dupli = false);
 	virtual void ReplacePhysicsShape(PHY_IPhysicsController *phyctrl);

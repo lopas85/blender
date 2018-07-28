@@ -854,13 +854,13 @@ KX_GameObject *KX_Scene::AddReplicaObject(KX_GameObject *originalobj, KX_GameObj
 		PHY_IPhysicsController *physicsCtrl = gameobj->GetPhysicsController();
 		PHY_IMotionState *motionstate = new KX_MotionState(gameobj->GetNode());
 
-		KX_GameObject *parent = gameobj->GetParent();
-		PHY_IPhysicsController *parentctrl = (parent) ? parent->GetPhysicsController() : nullptr;
+		KX_GameObject *physicsParent = gameobj->GetPhysicsParent();
+		PHY_IPhysicsController *parentctrl = (physicsParent) ? physicsParent->GetPhysicsController() : nullptr;
 
 		physicsCtrl->PostProcessReplica(motionstate, parentctrl);
 
 		// Child objects must be static.
-		if (parent) {
+		if (gameobj->GetParent()) {
 			physicsCtrl->SuspendDynamics();
 		}
 	}

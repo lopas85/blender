@@ -811,7 +811,7 @@ void CcdPhysicsEnvironment::ProcessFhSprings(double curTime, float interval)
 		if (body && (ctrl->GetConstructionInfo().m_do_fh || ctrl->GetConstructionInfo().m_do_rot_fh)) {
 			//re-implement SM_FhObject.cpp using btCollisionWorld::rayTest and info from ctrl->getConstructionInfo()
 			//send a ray from {0.0, 0.0, 0.0} towards {0.0, 0.0, -10.0}, in local coordinates
-			CcdPhysicsController *parentCtrl = ctrl->GetParent();
+			CcdPhysicsController *parentCtrl = static_cast<CcdPhysicsController *>(ctrl->GetParent());
 			btRigidBody *parentBody = parentCtrl ? parentCtrl->GetRigidBody() : nullptr;
 			btRigidBody *cl_object = parentBody ? parentBody : body;
 
@@ -2946,69 +2946,6 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 		delete motionstate;
 		shapeInfo->Release();
 		return;
-	}
-
-	if (isCompoundChild) {
-		//find parent, compound shape and add to it
-		//take relative transform into account!
-		CcdPhysicsController *parentCtrl = (CcdPhysicsController *)compoundParent->GetPhysicsController();
-		BLI_assert(parentCtrl);
-
-		// only makes compound shape if parent has a physics controller (i.e not an empty, etc)
-		if (parentCtrl) {
-			CcdShapeConstructionInfo *parentShapeInfo = parentCtrl->GetShapeInfo();
-			btRigidBody *rigidbody = parentCtrl->GetRigidBody();
-			btCollisionShape *colShape = rigidbody->getCollisionShape();
-			BLI_assert(colShape->isCompound());
-			btCompoundShape *compoundShape = (btCompoundShape *)colShape;
-
-			// compute the local transform from parent, this may include several node in the chain
-			SG_Node *gameNode = gameobj->GetNode();
-			SG_Node *parentNode = compoundParent->GetNode();
-			// relative transform
-			mt::vec3 parentScale = parentNode->GetWorldScaling();
-			parentScale[0] = 1.0f / parentScale[0];
-			parentScale[1] = 1.0f / parentScale[1];
-			parentScale[2] = 1.0f / parentScale[2];
-			mt::vec3 relativeScale = gameNode->GetWorldScaling() * parentScale;
-			mt::mat3 parentInvRot = parentNode->GetWorldOrientation().Transpose();
-			mt::vec3 relativePos = parentInvRot * ((gameNode->GetWorldPosition() - parentNode->GetWorldPosition()) * parentScale);
-			mt::mat3 relativeRot = parentInvRot * gameNode->GetWorldOrientation();
-
-			shapeInfo->m_childScale = ToBullet(relativeScale);
-			bm->setLocalScaling(shapeInfo->m_childScale);
-			shapeInfo->m_childTrans.setOrigin(ToBullet(relativePos));
-			shapeInfo->m_childTrans.setBasis(ToBullet(relativeRot));
-
-			parentShapeInfo->AddShape(shapeInfo);
-			compoundShape->addChildShape(shapeInfo->m_childTrans, bm);
-
-			// Recalculate inertia for object owning compound shape.
-			if (!rigidbody->isStaticOrKinematicObject()) {
-				btVector3 localInertia;
-				const float mass = 1.0f / rigidbody->getInvMass();
-				compoundShape->calculateLocalInertia(mass, localInertia);
-				rigidbody->setMassProps(mass, localInertia * parentCtrl->GetInertiaFactor());
-			}
-			shapeInfo->Release();
-			// delete motionstate as it's not used
-			delete motionstate;
-		}
-		return;
-	}
-
-	if (hasCompoundChildren) {
-		// create a compound shape info
-		CcdShapeConstructionInfo *compoundShapeInfo = new CcdShapeConstructionInfo();
-		compoundShapeInfo->m_shapeType = PHY_SHAPE_COMPOUND;
-		compoundShapeInfo->AddShape(shapeInfo);
-		// create the compound shape manually as we already have the child shape
-		btCompoundShape *compoundShape = new btCompoundShape();
-		compoundShape->addChildShape(shapeInfo->m_childTrans, bm);
-		// now replace the shape
-		bm = compoundShape;
-		shapeInfo->Release();
-		shapeInfo = compoundShapeInfo;
 	}
 
 #ifdef TEST_SIMD_HULL

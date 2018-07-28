@@ -141,12 +141,18 @@ public:
 	virtual void SetAngularVelocityMax(float val) = 0;
 	virtual float GetAngularVelocityMax() const = 0;
 
+	virtual void SetParent(PHY_IPhysicsController *parentCtrl) = 0;
+	virtual PHY_IPhysicsController *GetParent() const = 0;
+	/// Get the higher compound capable parent controller. 
+	virtual PHY_IPhysicsController *GetCompoundParent() const = 0;
+
 	// Shape control
 	virtual void AddCompoundChild(PHY_IPhysicsController *child) = 0;
 	virtual void RemoveCompoundChild(PHY_IPhysicsController *child) = 0;
 
 	virtual bool IsDynamic() = 0;
 	virtual bool IsCompound() = 0;
+	virtual bool IsCompoundChild() const = 0;
 	virtual bool IsDynamicsSuspended() const = 0;
 	virtual bool IsPhysicsSuspended() = 0;
 

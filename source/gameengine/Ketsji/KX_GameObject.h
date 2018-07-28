@@ -205,9 +205,10 @@ public:
 	 * object. It is the responsibility of the caller to decrement
 	 * the reference count when you have finished with it.
 	 */
-		KX_GameObject*
-	GetParent(
-	);
+	KX_GameObject *GetParent() const;
+
+	/// Get the nearest object with a physics controller.
+	KX_GameObject *GetPhysicsParent() const;
 
 	/** 
 	 * Sets the parent of this object to a game object

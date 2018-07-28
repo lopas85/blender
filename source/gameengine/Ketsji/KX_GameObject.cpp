@@ -324,7 +324,7 @@ void KX_GameObject::ReplicateConstraints(PHY_IPhysicsEnvironment *physEnv, const
 	}
 }
 
-KX_GameObject *KX_GameObject::GetParent()
+KX_GameObject *KX_GameObject::GetParent() const
 {
 	KX_GameObject *result = nullptr;
 	SG_Node *node = m_sgNode.get();
@@ -338,6 +338,21 @@ KX_GameObject *KX_GameObject::GetParent()
 	}
 
 	return result;
+}
+
+KX_GameObject *KX_GameObject::GetPhysicsParent() const
+{
+	KX_GameObject *parent = GetParent();
+	KX_GameObject *physicsParent = nullptr;
+	while (parent) {
+		if (parent->GetPhysicsController()) {
+			physicsParent = parent;
+			break;
+		}
+		parent = parent->GetParent();
+	}
+
+	return physicsParent;
 }
 
 void KX_GameObject::SetParent(KX_GameObject *obj, bool addToCompound, bool ghost)
@@ -398,14 +413,13 @@ void KX_GameObject::SetParent(KX_GameObject *obj, bool addToCompound, bool ghost
 
 	// if the new parent is a compound object, add this object shape to the compound shape.
 	// step 0: verify this object has physical controller
-	if (m_physicsController && addToCompound) {
-		// step 1: find the top parent (not necessarily obj)
-		KX_GameObject *rootobj = (KX_GameObject *)parentSgNode->GetRootSGParent()->GetClientObject(); // TODO root compound
-		// step 2: verify it has a physical controller and compound shape
-		if (rootobj != nullptr &&
-		    rootobj->m_physicsController != nullptr &&
-		    rootobj->m_physicsController->IsCompound()) {
-			rootobj->m_physicsController->AddCompoundChild(m_physicsController.get());
+	if (m_physicsController) {
+		m_physicsController->SetParent(GetPhysicsParent()->GetPhysicsController());
+		if (addToCompound) {
+			PHY_IPhysicsController *compoundCtrl = m_physicsController->GetCompoundParent();
+			if (compoundCtrl) {
+				compoundCtrl->AddCompoundChild(m_physicsController.get());
+			}
 		}
 	}
 	// graphically, the object hasn't change place, no need to update m_graphicController
@@ -417,8 +431,6 @@ void KX_GameObject::RemoveParent()
 		return;
 	}
 
-	// get the root object to remove us from compound object if needed
-	KX_GameObject *rootobj = (KX_GameObject *)m_sgNode->GetRootSGParent()->GetClientObject();
 	// Set us to the right spot
 	m_sgNode->SetLocalScale(m_sgNode->GetWorldScaling());
 	m_sgNode->SetLocalOrientation(m_sgNode->GetWorldOrientation());
@@ -435,13 +447,17 @@ void KX_GameObject::RemoveParent()
 		// object was not in root list, add it now and increment ref count
 		rootlist->Add(CM_AddRef(this));
 	}
+
 	if (m_physicsController) {
+		PHY_IPhysicsController *compoundCtrl = m_physicsController->GetCompoundParent();
 		// in case this controller was added as a child shape to the parent
-		if (rootobj &&
-		    rootobj->m_physicsController &&
-		    rootobj->m_physicsController->IsCompound()) {
-			rootobj->m_physicsController->RemoveCompoundChild(m_physicsController.get());
+		if (compoundCtrl && m_physicsController->IsCompoundChild()) {
+			compoundCtrl->RemoveCompoundChild(m_physicsController.get());
 		}
+
+		m_physicsController->SetParent(nullptr);
+
+		KX_GameObject *rootobj = static_cast<KX_GameObject *>(m_sgNode->GetRootSGParent()->GetClientObject());
 		m_physicsController->RestoreDynamics();
 		if (m_physicsController->IsDynamic() && (rootobj && rootobj->m_physicsController)) {
 			// dynamic object should remember the velocity they had while being parented
