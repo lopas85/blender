@@ -615,30 +615,30 @@ static void DeleteBulletShape(btCollisionShape *shape, bool free)
 	}
 }
 
-void CcdPhysicsController::DeleteControllerShape()
+bool CcdPhysicsController::ReplaceControllerShape(btCollisionShape *newShape)
 {
-	if (m_compoundCollisionShape) {
-		DeleteBulletShape(m_compoundCollisionShape, true);
-		m_compoundCollisionShape = nullptr;
-	}
 	if (m_collisionShape) {
 		DeleteBulletShape(m_collisionShape, true);
 		m_collisionShape = nullptr;
 	}
-}
 
-bool CcdPhysicsController::ReplaceControllerShape(btCollisionShape *newShape)
-{
-	DeleteControllerShape();
+	if (m_compoundCollisionShape) {
+		m_compoundCollisionShape->removeChildShape(m_collisionShape);
+	}
 
 	// If newShape is nullptr it means to create a new Bullet shape.
 	if (!newShape) {
-		newShape = m_shapeInfo->CreateBulletShape(m_cci.m_margin, m_cci.m_bGimpact, !m_cci.m_bSoft); // TODO compound
+		newShape = m_shapeInfo->CreateBulletShape(m_cci.m_margin, m_cci.m_bGimpact, !m_cci.m_bSoft);
+	}
+
+	m_collisionShape = newShape;
+	m_cci.m_collisionShape = newShape;
+
+	if (m_compoundCollisionShape) {
+		m_compoundCollisionShape->addChildShape(m_shapeInfo->m_childTrans, m_collisionShape);
 	}
 
 	m_object->setCollisionShape(newShape);
-	m_collisionShape = newShape;
-	m_cci.m_collisionShape = newShape;
 
 	btSoftBody *softBody = GetSoftBody();
 	if (softBody) {
@@ -683,7 +683,12 @@ CcdPhysicsController::~CcdPhysicsController()
 	}
 	delete m_object;
 
-	DeleteControllerShape();
+	if (m_compoundCollisionShape) {
+		DeleteBulletShape(m_compoundCollisionShape, true);
+	}
+	if (m_collisionShape) {
+		DeleteBulletShape(m_collisionShape, true);
+	}
 
 	if (m_shapeInfo) {
 		m_shapeInfo->Release();
@@ -1497,7 +1502,6 @@ void CcdPhysicsController::InitCompoundShape()
 	// Create the compound shape manually as we already have the child shape.
 	m_compoundCollisionShape = new btCompoundShape();
 	m_compoundCollisionShape->addChildShape(m_shapeInfo->m_childTrans, m_collisionShape);
-	CM_FunctionDebug(m_compoundCollisionShape);
 }
 
 /* This function dynamically adds the collision shape of another controller to

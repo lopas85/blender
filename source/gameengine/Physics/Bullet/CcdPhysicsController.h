@@ -524,6 +524,7 @@ protected:
 	float m_savedMass;
 	bool m_savedDyna;
 	bool m_suspended;
+	bool m_compoundChild;
 
 	void GetWorldOrientation(btMatrix3x3& mat);
 
@@ -557,11 +558,6 @@ protected:
 public:
 
 	CcdPhysicsController(const CcdConstructionInfo& ci);
-
-	/**
-	 * Delete the current Bullet shape used in the rigid body.
-	 */
-	void DeleteControllerShape();
 
 	/**
 	 * Delete the old Bullet shape and set the new Bullet shape : newShape
