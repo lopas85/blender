@@ -190,7 +190,7 @@ CcdPhysicsController::CcdPhysicsController(const CcdConstructionInfo& ci)
 	// copy pointers locally to allow smart release
 	m_MotionState = ci.m_MotionState;
 	m_collisionShape = ci.m_collisionShape;
-	m_compoundCollisionShape = nullptr;
+	m_compoundShape = nullptr;
 	// apply scaling before creating rigid body
 	m_collisionShape->setLocalScaling(m_cci.m_scaling);
 	if (m_cci.m_mass) {
@@ -546,8 +546,7 @@ void CcdPhysicsController::CreateBody()
 
 void CcdPhysicsController::CreateRigidbody()
 {
-	CM_Debug(m_compoundCollisionShape << ", " << m_collisionShape);
-	btCollisionShape *shape = (m_compoundCollisionShape) ? m_compoundCollisionShape : m_collisionShape;
+	btCollisionShape *shape = (m_compoundShape) ? m_compoundShape->GetShape() : m_collisionShape;
 	btRigidBody::btRigidBodyConstructionInfo rbci(m_cci.m_mass, m_bulletMotionState, shape, m_cci.m_localInertiaTensor *m_cci.m_inertiaFactor);
 	rbci.m_linearDamping = m_cci.m_linearDamping;
 	rbci.m_angularDamping = m_cci.m_angularDamping;
@@ -616,28 +615,21 @@ static void DeleteBulletShape(btCollisionShape *shape, bool free)
 	}
 }
 
-bool CcdPhysicsController::ReplaceControllerShape(btCollisionShape *newShape)
+void CcdPhysicsController::ReplaceControllerShape()
 {
+
+	btCollisionShape *newShape = m_shapeInfo->CreateBulletShape(m_cci.m_margin, m_cci.m_bGimpact, !m_cci.m_bSoft);
+
+	if (m_compoundShape) {
+		ReplaceCompoundChild(m_collisionShape, newShape);
+	}
+
 	if (m_collisionShape) {
 		DeleteBulletShape(m_collisionShape, true);
-		m_collisionShape = nullptr;
-	}
-
-	if (m_compoundCollisionShape) {
-		m_compoundCollisionShape->removeChildShape(m_collisionShape);
-	}
-
-	// If newShape is nullptr it means to create a new Bullet shape.
-	if (!newShape) {
-		newShape = m_shapeInfo->CreateBulletShape(m_cci.m_margin, m_cci.m_bGimpact, !m_cci.m_bSoft);
 	}
 
 	m_collisionShape = newShape;
 	m_cci.m_collisionShape = newShape;
-
-	if (m_compoundCollisionShape) {
-		m_compoundCollisionShape->addChildShape(m_shapeInfo->m_childTrans, m_collisionShape);
-	}
 
 	m_object->setCollisionShape(newShape);
 
@@ -662,8 +654,6 @@ bool CcdPhysicsController::ReplaceControllerShape(btCollisionShape *newShape)
 		// add the new softbody
 		world->addSoftBody(newSoftBody);
 	}
-
-	return true;
 }
 
 CcdPhysicsController::~CcdPhysicsController()
@@ -684,8 +674,8 @@ CcdPhysicsController::~CcdPhysicsController()
 	}
 	delete m_object;
 
-	if (m_compoundCollisionShape) {
-		DeleteBulletShape(m_compoundCollisionShape, true);
+	if (m_compoundShape) {
+		m_compoundShape->Release();
 	}
 	if (m_collisionShape) {
 		DeleteBulletShape(m_collisionShape, true);
@@ -795,7 +785,6 @@ void CcdPhysicsController::PostProcessReplica(class PHY_IMotionState *motionstat
 	m_MotionState = motionstate;
 	m_registerCount = 0;
 	m_collisionShape = nullptr;
-	m_compoundCollisionShape = nullptr;
 
 	// Clear all old constraints.
 	m_ccdConstraintRefs.clear();
@@ -844,13 +833,13 @@ void CcdPhysicsController::PostProcessReplica(class PHY_IMotionState *motionstat
 		m_cci.m_physicsEnv->AddCcdPhysicsController(this);
 	}
 
-	if (m_compoundChild) {
+	if (m_compoundShape) {
 		PHY_IPhysicsController *compoundParent = GetCompoundParent();
 		if (compoundParent) {
 			compoundParent->AddCompoundChild(this);
 		}
 		else {
-			m_compoundChild = false;
+			m_compoundShape = nullptr;
 		}
 	}
 }
@@ -1498,16 +1487,48 @@ bool CcdPhysicsController::IsCompoundChild() const
 	return m_compoundChild;
 }
 
-void CcdPhysicsController::SetCompoundChild(bool compound)
+void CcdPhysicsController::SetCompoundShape(CcdCompoundShape *shape)
 {
-	m_compoundChild = compound;
+	m_compoundShape = shape;
 }
 
 void CcdPhysicsController::InitCompoundShape()
 {
 	// Create the compound shape manually as we already have the child shape.
-	m_compoundCollisionShape = new btCompoundShape();
-	m_compoundCollisionShape->addChildShape(m_shapeInfo->m_childTrans, m_collisionShape);
+	m_compoundShape = new CcdCompoundShape();
+	m_compoundShape->GetShape()->addChildShape(m_shapeInfo->m_childTrans, m_collisionShape);
+}
+
+void CcdPhysicsController::UpdateCompoundShape()
+{
+	btRigidBody *body = GetRigidBody();
+	// Recalculate inertia for object owning compound shape.
+	if (!body->isStaticOrKinematicObject()) {
+		btVector3 localInertia;
+		const float mass = 1.0f / body->getInvMass();
+		m_compoundShape->GetShape()->calculateLocalInertia(mass, localInertia);
+		body->setMassProps(mass, localInertia * m_cci.m_inertiaFactor);
+	}
+}
+
+void CcdPhysicsController::ReplaceCompoundChild(btCollisionShape *oldShape, btCollisionShape *newShape)
+{
+	btCompoundShape *compoundShape = m_compoundShape->GetShape();
+	// Find child shape index.
+	unsigned short index = 0;
+	for (unsigned short size = compoundShape->getNumChildShapes(); index < size; ++index) {
+		if (compoundShape->getChildShape(index) == oldShape) {
+			break;
+		}
+	}
+
+	CM_Debug(index);
+
+	const btTransform trans = compoundShape->getChildTransform(index);
+	compoundShape->removeChildShapeByIndex(index);
+	compoundShape->addChildShape(trans, newShape);
+
+	UpdateCompoundShape();
 }
 
 /* This function dynamically adds the collision shape of another controller to
@@ -1534,14 +1555,18 @@ void CcdPhysicsController::AddCompoundChild(PHY_IPhysicsController *child)
 		return;
 	}
 
-	childCtrl->SetCompoundChild(true);
+	// Share the owning of the compound shape.
+	childCtrl->SetCompoundShape(m_compoundShape->AddRef());
+
+	// The actual bullet compound shape.
+	btCompoundShape *compoundShape = m_compoundShape->GetShape();
 
 	// compute relative transformation between parent and child
 	btTransform rootTrans;
 	btTransform childTrans;
 	rootBody->getMotionState()->getWorldTransform(rootTrans);
 	childBody->getMotionState()->getWorldTransform(childTrans);
-	btVector3 rootScale = m_compoundCollisionShape->getLocalScaling();
+	btVector3 rootScale = compoundShape->getLocalScaling();
 	rootScale[0] = 1.0 / rootScale[0];
 	rootScale[1] = 1.0 / rootScale[1];
 	rootScale[2] = 1.0 / rootScale[2];
@@ -1557,15 +1582,10 @@ void CcdPhysicsController::AddCompoundChild(PHY_IPhysicsController *child)
 
 // 	newChildShape->setLocalScaling(relativeScale); // TODO ?
 	// add bullet collision shape to parent compound collision shape
-	m_compoundCollisionShape->addChildShape(shapeTrans, childShape);
+	compoundShape->addChildShape(shapeTrans, childShape);
 
-	// Recalculate inertia for object owning compound shape.
-	if (!rootBody->isStaticOrKinematicObject()) {
-		btVector3 localInertia;
-		const float mass = 1.0f / rootBody->getInvMass();
-		m_compoundCollisionShape->calculateLocalInertia(mass, localInertia);
-		rootBody->setMassProps(mass, localInertia * m_cci.m_inertiaFactor);
-	}
+	UpdateCompoundShape();
+
 	// must update the broadphase cache,
 	m_cci.m_physicsEnv->RefreshCcdPhysicsController(this);
 	// remove the children
@@ -1593,26 +1613,27 @@ void CcdPhysicsController::RemoveCompoundChild(PHY_IPhysicsController *child)
 		return;
 	}
 
-	childCtrl->SetCompoundChild(false);
+	// Remove the owning of the compound shape.
+	childCtrl->SetCompoundShape(nullptr);
+	m_compoundShape->Release();
 
-	for (unsigned short i = 0, numChildren = m_compoundCollisionShape->getNumChildShapes(); i < numChildren; i++) {
-		if (m_compoundCollisionShape->getChildShape(i) == childShape) {
+	// The actual bullet compound shape.
+	btCompoundShape *compoundShape = m_compoundShape->GetShape();
+
+	for (unsigned short i = 0, numChildren = compoundShape->getNumChildShapes(); i < numChildren; i++) {
+		if (compoundShape->getChildShape(i) == childShape) {
 			// Apply the compound transform to the child object.
-			const btTransform childTrans = m_object->getWorldTransform() * m_compoundCollisionShape->getChildTransform(i);
+			const btTransform childTrans = m_object->getWorldTransform() * compoundShape->getChildTransform(i);
 			childCtrl->SetCenterOfMassTransform(childTrans);
 
-			m_compoundCollisionShape->removeChildShapeByIndex(i);
-			m_compoundCollisionShape->recalculateLocalAabb();
+			compoundShape->removeChildShapeByIndex(i);
+			compoundShape->recalculateLocalAabb();
 			break;
 		}
 	}
-	// recompute inertia of parent
-	if (!rootBody->isStaticOrKinematicObject()) {
-		btVector3 localInertia;
-		float mass = 1.f / rootBody->getInvMass();
-		m_compoundCollisionShape->calculateLocalInertia(mass, localInertia);
-		rootBody->setMassProps(mass, localInertia * m_cci.m_inertiaFactor);
-	}
+
+	UpdateCompoundShape();
+
 	// must update the broadphase cache,
 	m_cci.m_physicsEnv->RefreshCcdPhysicsController(this);
 	// reactivate the children
@@ -1724,8 +1745,8 @@ void CcdPhysicsController::ReplacePhysicsShape(PHY_IPhysicsController *phyctrl)
 	m_shapeInfo->Release();
 	m_shapeInfo = shapeInfo->AddRef();
 
-	// recreate Bullet shape only for this physics controller
-	ReplaceControllerShape(nullptr);
+	// recreate Bullet shape for this physics controller
+	ReplaceControllerShape();
 	// refresh to remove collision pair
 	m_cci.m_physicsEnv->RefreshCcdPhysicsController(this);
 }
@@ -2150,3 +2171,17 @@ CcdShapeConstructionInfo::~CcdShapeConstructionInfo()
 	}
 }
 
+CcdCompoundShape::CcdCompoundShape()
+	:m_shape(new btCompoundShape())
+{
+}
+
+CcdCompoundShape::~CcdCompoundShape()
+{
+	DeleteBulletShape(m_shape, true);
+}
+
+btCompoundShape *CcdCompoundShape::GetShape() const
+{
+	return m_shape;
+}

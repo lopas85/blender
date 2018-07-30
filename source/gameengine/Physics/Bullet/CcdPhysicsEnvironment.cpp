@@ -710,7 +710,7 @@ void CcdPhysicsEnvironment::UpdateCcdPhysicsControllerShape(CcdShapeConstruction
 			continue;
 		}
 
-		ctrl->ReplaceControllerShape(nullptr);
+		ctrl->ReplaceControllerShape();
 		RefreshCcdPhysicsController(ctrl);
 	}
 }
@@ -2643,7 +2643,6 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 	CcdConstructionInfo ci;
 	class CcdShapeConstructionInfo *shapeInfo = new CcdShapeConstructionInfo();
 
-	Object *blenderRoot = blenderobject->parent;
 	Object *blenderCompoundRoot = nullptr;
 	// Iterate over all parents in the object tree.
 	{
@@ -2655,7 +2654,6 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 				blenderCompoundRoot = parentit;
 			}
 			// Continue looking for root parent.
-			blenderRoot = parentit;
 
 			parentit = parentit->parent;
 		}
@@ -2667,9 +2665,8 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 		isbulletsoftbody = false;
 	}
 
-	KX_GameObject *parentRoot = nullptr;
-	if (blenderRoot) {
-		parentRoot = converter.FindGameObject(blenderRoot);
+	KX_GameObject *physicsParent = gameobj->GetPhysicsParent();
+	if (physicsParent) {
 		isbulletsoftbody = false;
 	}
 
@@ -3045,12 +3042,12 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 		}
 	}
 
-	if (parentRoot) {
+	if (physicsParent) {
+		CcdPhysicsController *parentCtrl = physicsParent ? static_cast<CcdPhysicsController *>(physicsParent->GetPhysicsController()) : nullptr;
 		physicscontroller->SuspendDynamics(false);
+		physicscontroller->SetParent(parentCtrl);
 	}
 
-	CcdPhysicsController *parentCtrl = parentRoot ? static_cast<CcdPhysicsController *>(parentRoot->GetPhysicsController()) : nullptr;
-	physicscontroller->SetParent(parentCtrl);
 
 	if (isCompoundChild) {
 		CcdPhysicsController *compoundParentCtrl = (CcdPhysicsController *)compoundParent->GetPhysicsController();

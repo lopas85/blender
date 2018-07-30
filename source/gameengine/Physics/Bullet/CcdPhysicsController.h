@@ -148,6 +148,18 @@ protected:
 	float m_weldingThreshold1;
 };
 
+class CcdCompoundShape : public CM_RefCount<CcdCompoundShape>
+{
+private:
+	btCompoundShape *m_shape;
+
+public:
+	CcdCompoundShape();
+	~CcdCompoundShape();
+
+	btCompoundShape *GetShape() const;
+};
+
 struct CcdConstructionInfo {
 
 	/** CollisionFilterGroups provides some optional usage of basic collision filtering
@@ -497,7 +509,7 @@ protected:
 	class PHY_IMotionState *m_MotionState;
 	btMotionState *m_bulletMotionState;
 	btCollisionShape *m_collisionShape;
-	btCompoundShape *m_compoundCollisionShape;
+	CcdCompoundShape *m_compoundShape;
 	class CcdShapeConstructionInfo *m_shapeInfo;
 
 	/// keep track of typed constraints referencing this rigid body
@@ -559,11 +571,8 @@ public:
 
 	CcdPhysicsController(const CcdConstructionInfo& ci);
 
-	/**
-	 * Delete the old Bullet shape and set the new Bullet shape : newShape
-	 * \param newShape The new Bullet shape to set, if is nullptr we create a new Bullet shape
-	 */
-	bool ReplaceControllerShape(btCollisionShape *newShape);
+	/// Delete the old Bullet shape and set the new created Bullet shape.
+	void ReplaceControllerShape();
 
 	virtual ~CcdPhysicsController();
 
@@ -670,9 +679,11 @@ public:
 	virtual void SuspendDynamics(bool ghost);
 	virtual void RestoreDynamics();
 
-	void SetCompoundChild(bool compound);
+	void SetCompoundShape(CcdCompoundShape *shape);
 	/// Initialize a compound shape and add the previous shape as first child.
 	void InitCompoundShape();
+	void UpdateCompoundShape();
+	void ReplaceCompoundChild(btCollisionShape *oldShape, btCollisionShape *newShape);
 	// Shape control
 	virtual void AddCompoundChild(PHY_IPhysicsController *child);
 	virtual void RemoveCompoundChild(PHY_IPhysicsController *child);
