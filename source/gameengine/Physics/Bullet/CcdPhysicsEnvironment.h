@@ -108,7 +108,10 @@ protected:
 
 	std::unique_ptr<btCollisionDispatcher> m_dispatcher;
 
+	/// All existing physics controllers.
 	std::set<CcdPhysicsController *> m_controllers;
+	/// Controllers with their collision object used in dynamic world.
+	std::set<CcdPhysicsController *> m_activeControllers;
 	std::vector<WrapperVehicle *> m_wrapperVehicles;
 
 	PHY_ResponseCallback m_triggerCallbacks[PHY_NUM_RESPONSE];
@@ -239,19 +242,13 @@ public:
 	//CcdPhysicsEnvironment interface
 	////////////////////////
 
-	void AddCcdPhysicsController(CcdPhysicsController *ctrl);
-
-	bool RemoveCcdPhysicsController(CcdPhysicsController *ctrl, bool freeConstraints);
-
-	void UpdateCcdPhysicsController(CcdPhysicsController *ctrl, btScalar newMass, int newCollisionFlags, short int newCollisionGroup, short int newCollisionMask);
-
-	void RefreshCcdPhysicsController(CcdPhysicsController *ctrl);
-
-	bool IsActiveCcdPhysicsController(CcdPhysicsController *ctrl);
-
-	void AddCcdGraphicController(CcdGraphicController *ctrl);
-
-	void RemoveCcdGraphicController(CcdGraphicController *ctrl);
+	void AddPhysicsController(CcdPhysicsController *ctrl);
+	void RemovePhysicsController(CcdPhysicsController *ctrl);
+	void ActivatePhysicsController(CcdPhysicsController *ctrl);
+	void DeactivatePhysicsController(CcdPhysicsController *ctrl, bool freeConstraints);
+	void UpdatePhysicsController(CcdPhysicsController *ctrl, btScalar newMass, int newCollisionFlags, short int newCollisionGroup, short int newCollisionMask);
+	void RefreshPhysicsController(CcdPhysicsController *ctrl);
+	bool IsActivePhysicsController(CcdPhysicsController *ctrl);
 
 	/**
 	 * Update all physics controllers shape which use the same shape construction info.
@@ -259,7 +256,10 @@ public:
 	 * construction info that argument shapeInfo.
 	 * You need to call this function when the shape construction info changed.
 	 */
-	void UpdateCcdPhysicsControllerShape(CcdShapeConstructionInfo *shapeInfo);
+	void UpdatePhysicsControllerShape(CcdShapeConstructionInfo *shapeInfo);
+
+	void AddGraphicController(CcdGraphicController *ctrl);
+	void RemoveGraphicController(CcdGraphicController *ctrl);
 
 	btBroadphaseInterface *GetBroadphase();
 	btDbvtBroadphase *GetCullingTree()

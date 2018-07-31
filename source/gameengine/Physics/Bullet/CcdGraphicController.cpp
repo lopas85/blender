@@ -33,7 +33,7 @@ CcdGraphicController::CcdGraphicController(CcdPhysicsEnvironment *phyEnv, PHY_IM
 CcdGraphicController::~CcdGraphicController()
 {
 	if (m_phyEnv) {
-		m_phyEnv->RemoveCcdGraphicController(this);
+		m_phyEnv->RemoveGraphicController(this);
 	}
 
 	if (m_motionState) {
@@ -126,9 +126,9 @@ void CcdGraphicController::SetPhysicsEnvironment(class PHY_IPhysicsEnvironment *
 void CcdGraphicController::Activate(bool active)
 {
 	if (active) {
-		m_phyEnv->AddCcdGraphicController(this);
+		m_phyEnv->AddGraphicController(this);
 	}
 	else {
-		m_phyEnv->RemoveCcdGraphicController(this);
+		m_phyEnv->RemoveGraphicController(this);
 	}
 }

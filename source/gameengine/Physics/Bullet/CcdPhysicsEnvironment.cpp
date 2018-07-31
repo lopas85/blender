@@ -444,10 +444,15 @@ CcdPhysicsEnvironment::CcdPhysicsEnvironment(PHY_SolverType solverType, bool use
 	SetGravity(0.0f, 0.0f, -9.81f);
 }
 
-void CcdPhysicsEnvironment::AddCcdPhysicsController(CcdPhysicsController *ctrl)
+void CcdPhysicsEnvironment::AddPhysicsController(CcdPhysicsController *ctrl)
+{
+	m_controllers.insert(ctrl);
+}
+
+void CcdPhysicsEnvironment::ActivatePhysicsController(CcdPhysicsController *ctrl)
 {
 	// the controller is already added we do nothing
-	if (!m_controllers.insert(ctrl).second) {
+	if (!m_activeControllers.insert(ctrl).second) {
 		return;
 	}
 
@@ -574,17 +579,22 @@ void CcdPhysicsEnvironment::RestoreConstraint(CcdPhysicsController *ctrl, btType
 	BLI_assert(other != nullptr);
 
 	// Avoid add constraint if one of the objects are not available.
-	if (IsActiveCcdPhysicsController(other)) {
+	if (IsActivePhysicsController(other)) {
 		userData->SetActive(true);
 		m_dynamicsWorld->addConstraint(con, userData->GetDisableCollision());
 	}
 }
 
-bool CcdPhysicsEnvironment::RemoveCcdPhysicsController(CcdPhysicsController *ctrl, bool freeConstraints)
+void CcdPhysicsEnvironment::RemovePhysicsController(CcdPhysicsController *ctrl)
+{
+	m_controllers.erase(ctrl);
+}
+
+void CcdPhysicsEnvironment::DeactivatePhysicsController(CcdPhysicsController *ctrl, bool freeConstraints)
 {
 	// if the physics controller is already removed we do nothing
-	if (!m_controllers.erase(ctrl)) {
-		return false;
+	if (!m_activeControllers.erase(ctrl)) {
+		return;
 	}
 
 	//also remove constraint
@@ -619,11 +629,9 @@ bool CcdPhysicsEnvironment::RemoveCcdPhysicsController(CcdPhysicsController *ctr
 			}
 		}
 	}
-
-	return true;
 }
 
-void CcdPhysicsEnvironment::UpdateCcdPhysicsController(CcdPhysicsController *ctrl, btScalar newMass, int newCollisionFlags, short int newCollisionGroup, short int newCollisionMask)
+void CcdPhysicsEnvironment::UpdatePhysicsController(CcdPhysicsController *ctrl, btScalar newMass, int newCollisionFlags, short int newCollisionGroup, short int newCollisionMask)
 {
 	// this function is used when the collisionning group of a controller is changed
 	// remove and add the collistioning object
@@ -655,7 +663,7 @@ void CcdPhysicsEnvironment::UpdateCcdPhysicsController(CcdPhysicsController *ctr
 	ctrl->m_cci.m_collisionFlags = newCollisionFlags;
 }
 
-void CcdPhysicsEnvironment::RefreshCcdPhysicsController(CcdPhysicsController *ctrl)
+void CcdPhysicsEnvironment::RefreshPhysicsController(CcdPhysicsController *ctrl)
 {
 	btCollisionObject *obj = ctrl->GetCollisionObject();
 	if (obj) {
@@ -666,12 +674,12 @@ void CcdPhysicsEnvironment::RefreshCcdPhysicsController(CcdPhysicsController *ct
 	}
 }
 
-bool CcdPhysicsEnvironment::IsActiveCcdPhysicsController(CcdPhysicsController *ctrl)
+bool CcdPhysicsEnvironment::IsActivePhysicsController(CcdPhysicsController *ctrl)
 {
-	return (m_controllers.find(ctrl) != m_controllers.end());
+	return (m_activeControllers.find(ctrl) != m_activeControllers.end());
 }
 
-void CcdPhysicsEnvironment::AddCcdGraphicController(CcdGraphicController *ctrl)
+void CcdPhysicsEnvironment::AddGraphicController(CcdGraphicController *ctrl)
 {
 	if (m_cullingTree && !ctrl->GetBroadphaseHandle()) {
 		btVector3 minAabb;
@@ -692,7 +700,7 @@ void CcdPhysicsEnvironment::AddCcdGraphicController(CcdGraphicController *ctrl)
 	}
 }
 
-void CcdPhysicsEnvironment::RemoveCcdGraphicController(CcdGraphicController *ctrl)
+void CcdPhysicsEnvironment::RemoveGraphicController(CcdGraphicController *ctrl)
 {
 	if (m_cullingTree) {
 		btBroadphaseProxy *bp = ctrl->GetBroadphaseHandle();
@@ -703,7 +711,7 @@ void CcdPhysicsEnvironment::RemoveCcdGraphicController(CcdGraphicController *ctr
 	}
 }
 
-void CcdPhysicsEnvironment::UpdateCcdPhysicsControllerShape(CcdShapeConstructionInfo *shapeInfo)
+void CcdPhysicsEnvironment::UpdatePhysicsControllerShape(CcdShapeConstructionInfo *shapeInfo)
 {
 	for (CcdPhysicsController *ctrl : m_controllers) {
 		if (ctrl->GetShapeInfo() != shapeInfo) {
@@ -711,7 +719,7 @@ void CcdPhysicsEnvironment::UpdateCcdPhysicsControllerShape(CcdShapeConstruction
 		}
 
 		ctrl->ReplaceControllerShape();
-		RefreshCcdPhysicsController(ctrl);
+		RefreshPhysicsController(ctrl);
 	}
 }
 
@@ -729,24 +737,21 @@ void CcdPhysicsEnvironment::StaticSimulationSubtickCallback(btDynamicsWorld *wor
 
 void CcdPhysicsEnvironment::SimulationSubtickCallback(btScalar timeStep)
 {
-	std::set<CcdPhysicsController *>::iterator it;
-
-	for (it = m_controllers.begin(); it != m_controllers.end(); it++) {
-		(*it)->SimulationTick(timeStep);
+	for (CcdPhysicsController *ctrl : m_activeControllers) {
+		ctrl->SimulationTick(timeStep);
 	}
 }
 
 bool CcdPhysicsEnvironment::ProceedDeltaTime(double curTime, float timeStep, float interval)
 {
-	std::set<CcdPhysicsController *>::iterator it;
 	int i;
 
 	// Update Bullet global variables.
 	gDeactivationTime = m_deactivationTime;
 	gContactBreakingThreshold = m_contactBreakingThreshold;
 
-	for (it = m_controllers.begin(); it != m_controllers.end(); it++) {
-		(*it)->SynchronizeMotionStates(timeStep);
+	for (CcdPhysicsController *ctrl : m_activeControllers) {
+		ctrl->SynchronizeMotionStates(timeStep);
 	}
 
 	float subStep = timeStep / float(m_numTimeSubSteps);
@@ -756,8 +761,8 @@ bool CcdPhysicsEnvironment::ProceedDeltaTime(double curTime, float timeStep, flo
 
 	ProcessFhSprings(curTime, i * subStep);
 
-	for (it = m_controllers.begin(); it != m_controllers.end(); it++) {
-		(*it)->SynchronizeMotionStates(timeStep);
+	for (CcdPhysicsController *ctrl : m_activeControllers) {
+		ctrl->SynchronizeMotionStates(timeStep);
 	}
 
 	for (i = 0; i < m_wrapperVehicles.size(); i++) {
@@ -804,8 +809,7 @@ void CcdPhysicsEnvironment::ProcessFhSprings(double curTime, float interval)
 
 	const float step = interval * KX_GetActiveEngine()->GetTicRate();
 
-	for (it = m_controllers.begin(); it != m_controllers.end(); it++) {
-		CcdPhysicsController *ctrl = (*it);
+	for (CcdPhysicsController *ctrl : m_activeControllers) {
 		btRigidBody *body = ctrl->GetRigidBody();
 
 		if (body && (ctrl->GetConstructionInfo().m_do_fh || ctrl->GetConstructionInfo().m_do_rot_fh)) {
@@ -1941,14 +1945,12 @@ void CcdPhysicsEnvironment::MergeEnvironment(PHY_IPhysicsEnvironment *other_env)
 		return;
 	}
 
-	std::set<CcdPhysicsController *>::iterator it;
+	m_controllers.insert(other->m_controllers.begin(), other->m_controllers.end());
 
-	while (other->m_controllers.begin() != other->m_controllers.end()) {
-		it = other->m_controllers.begin();
-		CcdPhysicsController *ctrl = (*it);
-
-		other->RemoveCcdPhysicsController(ctrl, true);
-		this->AddCcdPhysicsController(ctrl);
+	while (!other->m_activeControllers.empty()) {
+		CcdPhysicsController *ctrl = *other->m_activeControllers.begin();
+		other->DeactivatePhysicsController(ctrl, true);
+		ActivatePhysicsController(ctrl);
 	}
 }
 
@@ -1981,7 +1983,8 @@ btTypedConstraint *CcdPhysicsEnvironment::GetConstraintById(int constraintId)
 void CcdPhysicsEnvironment::AddSensor(PHY_IPhysicsController *ctrl)
 {
 	CcdPhysicsController *ctrl1 = (CcdPhysicsController *)ctrl;
-	AddCcdPhysicsController(ctrl1);
+	AddPhysicsController(ctrl1);
+	ActivatePhysicsController(ctrl1);
 }
 
 bool CcdPhysicsEnvironment::RemoveCollisionCallback(PHY_IPhysicsController *ctrl)
@@ -1992,7 +1995,9 @@ bool CcdPhysicsEnvironment::RemoveCollisionCallback(PHY_IPhysicsController *ctrl
 
 void CcdPhysicsEnvironment::RemoveSensor(PHY_IPhysicsController *ctrl)
 {
-	RemoveCcdPhysicsController((CcdPhysicsController *)ctrl, true);
+	CcdPhysicsController *ctrl1 = (CcdPhysicsController *)ctrl;
+	DeactivatePhysicsController(ctrl1, true);
+	RemovePhysicsController(ctrl1);
 }
 
 void CcdPhysicsEnvironment::AddCollisionCallback(int response_class, PHY_ResponseCallback callback, void *user)
@@ -3021,9 +3026,10 @@ void CcdPhysicsEnvironment::ConvertObject(BL_SceneConverter& converter, KX_GameO
 
 	physicscontroller->SetNewClientInfo(&gameobj->GetClientInfo());
 
+	AddPhysicsController(physicscontroller);
 	// don't add automatically sensor object, they are added when a collision sensor is registered
 	if (!isbulletsensor && (blenderobject->lay & activeLayerBitInfo) != 0) {
-		this->AddCcdPhysicsController(physicscontroller);
+		ActivatePhysicsController(physicscontroller);
 	}
 
 	{
