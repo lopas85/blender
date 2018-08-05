@@ -205,6 +205,11 @@ void BL_Converter::FinalizeSceneData(const BL_SceneConverter& converter, KX_Scen
 		// Do this after lights are available so materials can use the lights in shaders.
 		mat->InitScene(mergeScene);
 	}
+
+	KX_WorldInfo *world = mergeScene->GetWorldInfo();
+	if (world) {
+		world->ReloadMaterial();
+	}
 }
 
 void BL_Converter::RemoveScene(KX_Scene *scene)

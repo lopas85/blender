@@ -486,6 +486,8 @@ class RENDER_PT_game_display(RenderButtonsPanel, Panel):
         col = layout.column()
         col.prop(gs, "show_mouse", text="Mouse Cursor")
 
+        col.prop(gs, "color_management")
+
         col = layout.column()
         col.label(text="Framing:")
         col.row().prop(gs, "frame_type", expand=True)

@@ -308,5 +308,12 @@ void blo_do_versions_upbge(FileData *fd, Library *lib, Main *main)
 				lamp->cutoff = 0.001f;
 			}
 		}
+
+
+		if (!DNA_struct_elem_find(fd->filesdna, "GameData", "short", "colorManagement")) {
+			for (Scene *scene = main->scene.first; scene; scene = scene->id.next) {
+				scene->gm.colorManagement = GAME_COLOR_MANAGEMENT_SRGB;
+			}
+		}
 	}
 }
