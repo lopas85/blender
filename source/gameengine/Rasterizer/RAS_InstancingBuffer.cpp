@@ -79,10 +79,10 @@ void RAS_InstancingBuffer::Update(RAS_Rasterizer *rasty, int drawingmode, RAS_Me
 
 	for (unsigned int i = 0, size = meshSlots.size(); i < size; ++i) {
 		RAS_MeshSlot *ms = meshSlots[i];
+		RAS_MeshUser *meshUser = ms->GetMeshUser();
 		InstancingObject& data = buffer[i];
 		float mat[16];
-		rasty->SetClientObject(ms->m_meshUser->GetClientObject());
-		rasty->GetTransform(ms->m_meshUser->GetMatrix(), drawingmode, mat);
+		rasty->GetTransform(meshUser->GetMatrix(), drawingmode, meshUser->GetClientObject(), mat);
 		data.matrix[0] = mat[0];
 		data.matrix[1] = mat[4];
 		data.matrix[2] = mat[8];
@@ -96,7 +96,7 @@ void RAS_InstancingBuffer::Update(RAS_Rasterizer *rasty, int drawingmode, RAS_Me
 		data.position[1] = mat[13];
 		data.position[2] = mat[14];
 
-		const mt::vec4& color = ms->m_meshUser->GetColor();
+		const mt::vec4& color = meshUser->GetColor();
 		data.color[0] = color[0] * 255.0f;
 		data.color[1] = color[1] * 255.0f;
 		data.color[2] = color[2] * 255.0f;

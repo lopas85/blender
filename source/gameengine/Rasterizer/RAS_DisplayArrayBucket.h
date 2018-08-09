@@ -74,11 +74,19 @@ private:
 	CM_UpdateClient<RAS_DisplayArray> m_arrayUpdateClient;
 
 	RAS_DisplayArrayNodeData m_nodeData;
-	RAS_DisplayArrayDownwardNode m_downwardNode;
-	RAS_DisplayArrayUpwardNode m_upwardNode;
 
-	RAS_DisplayArrayDownwardNode m_instancingNode;
-	RAS_DisplayArrayDownwardNode m_batchingNode;
+	// Override.
+	RAS_DisplayArrayDownwardNode m_downwardNode[2];
+	// Override.
+	RAS_DisplayArrayDownwardNode m_textNode[2];
+	// Text.
+	RAS_DisplayArrayUpwardNode m_upwardNode[2];
+	// Override / Sort.
+	RAS_DisplayArrayDownwardNode m_instancingNode[2][2];
+	// Sort.
+	RAS_DisplayArrayDownwardNode m_batchingNode[2];
+
+	void ConstructNodes();
 
 public:
 	RAS_DisplayArrayBucket(RAS_MaterialBucket *bucket, RAS_DisplayArray *array,
@@ -98,17 +106,24 @@ public:
 
 	/// \section Render Infos
 	bool UseBatching() const;
+	bool ApplyMatrix() const;
 
 	/// Update render infos.
 	void UpdateActiveMeshSlots(RAS_Rasterizer::DrawType drawingMode);
 
 	void GenerateTree(RAS_MaterialDownwardNode& downwardRoot, RAS_MaterialUpwardNode& upwardRoot,
-			RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool sort, bool instancing);
+			RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, 
+			bool shaderOverride, bool sort, bool polySort,  bool instancing, bool text);
 	void BindUpwardNode(const RAS_DisplayArrayNodeTuple& tuple);
 	void UnbindUpwardNode(const RAS_DisplayArrayNodeTuple& tuple);
+
+	template <bool Override, bool ApplyMatrix, bool Text>
 	void RunDownwardNode(const RAS_DisplayArrayNodeTuple& tuple);
-	void RunDownwardNodeNoArray(const RAS_DisplayArrayNodeTuple& tuple);
+
+	template <bool Override, bool Sort>
 	void RunInstancingNode(const RAS_DisplayArrayNodeTuple& tuple);
+
+	template <bool Sort>
 	void RunBatchingNode(const RAS_DisplayArrayNodeTuple& tuple);
 
 	/// Replace the material bucket of this display array bucket by the one given.

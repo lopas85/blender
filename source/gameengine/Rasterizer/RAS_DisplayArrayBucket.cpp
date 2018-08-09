@@ -62,32 +62,55 @@ RAS_DisplayArrayBucket::RAS_DisplayArrayBucket(RAS_MaterialBucket *bucket, RAS_D
 	m_attribArray(m_displayArray),
 	m_instancingBuffer(nullptr),
 	m_materialUpdateClient(RAS_IPolyMaterial::ATTRIBUTES_MODIFIED, RAS_IPolyMaterial::ATTRIBUTES_MODIFIED),
-	m_arrayUpdateClient(RAS_DisplayArray::ANY_MODIFIED, RAS_DisplayArray::STORAGE_INVALID),
-	m_instancingNode(this, &m_nodeData, &RAS_DisplayArrayBucket::RunInstancingNode, nullptr),
-	m_batchingNode(this, &m_nodeData, &RAS_DisplayArrayBucket::RunBatchingNode, nullptr)
+	m_arrayUpdateClient(RAS_DisplayArray::ANY_MODIFIED, RAS_DisplayArray::STORAGE_INVALID)
 {
 	m_bucket->AddDisplayArrayBucket(this);
 
-	// Display array can be null in case of text.
-	if (m_displayArray) {
-		m_downwardNode = RAS_DisplayArrayDownwardNode(this, &m_nodeData, &RAS_DisplayArrayBucket::RunDownwardNode, nullptr);
-		m_upwardNode = RAS_DisplayArrayUpwardNode(this, &m_nodeData, &RAS_DisplayArrayBucket::BindUpwardNode,
-		                                          &RAS_DisplayArrayBucket::UnbindUpwardNode);
+	m_instancingNode[0][0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunInstancingNode<false, false>, nullptr);
+	m_instancingNode[0][1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunInstancingNode<false, true>, nullptr);
+	m_instancingNode[1][0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunInstancingNode<true, false>, nullptr);
+	m_instancingNode[1][1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunInstancingNode<true, true>, nullptr);
 
+	m_batchingNode[0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunBatchingNode<false>, nullptr);
+	m_batchingNode[1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunBatchingNode<true>, nullptr);
+
+	m_textNode[0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunDownwardNode<false, false, true>, nullptr);
+	m_textNode[1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::RunDownwardNode<true, false, true>, nullptr);
+
+	m_upwardNode[0] = RAS_DisplayArrayUpwardNode(this, &m_nodeData,
+			&RAS_DisplayArrayBucket::BindUpwardNode, &RAS_DisplayArrayBucket::UnbindUpwardNode);
+	m_upwardNode[1] = RAS_DisplayArrayUpwardNode(this, &m_nodeData, nullptr, nullptr);
+
+	if (m_displayArray) {
 		m_arrayStorage = &m_displayArray->GetStorage();
 		m_displayArray->AddUpdateClient(&m_arrayUpdateClient);
-	}
-	else {
-		// If there's no display array then we draw using text, in this case the display array bind/unbind should be avoid.
-		m_downwardNode = RAS_DisplayArrayDownwardNode(this, &m_nodeData, &RAS_DisplayArrayBucket::RunDownwardNodeNoArray, nullptr);
-		m_upwardNode = RAS_DisplayArrayUpwardNode(this, &m_nodeData, nullptr, nullptr);
 	}
 
 	// Initialize node arguments.
 	m_nodeData.m_array = m_displayArray;
 	m_nodeData.m_arrayStorage = m_arrayStorage;
 	m_nodeData.m_attribStorage = nullptr;
-	m_nodeData.m_applyMatrix = (!m_deformer || !m_deformer->SkipVertexTransform());
+
+	if (ApplyMatrix()) {
+		m_downwardNode[0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+				&RAS_DisplayArrayBucket::RunDownwardNode<false, true, false>, nullptr);
+		m_downwardNode[1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+				&RAS_DisplayArrayBucket::RunDownwardNode<true, true, false>, nullptr);
+	}
+	else {
+		m_downwardNode[0] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+				&RAS_DisplayArrayBucket::RunDownwardNode<false, false, false>, nullptr);
+		m_downwardNode[1] = RAS_DisplayArrayDownwardNode(this, &m_nodeData,
+				&RAS_DisplayArrayBucket::RunDownwardNode<true, false, false>, nullptr);
+	}
 
 	RAS_IPolyMaterial *material = bucket->GetMaterial();
 	material->AddUpdateClient(&m_materialUpdateClient);
@@ -133,6 +156,11 @@ bool RAS_DisplayArrayBucket::UseBatching() const
 	return (m_displayArray && m_displayArray->GetType() == RAS_DisplayArray::BATCHING);
 }
 
+bool RAS_DisplayArrayBucket::ApplyMatrix() const
+{
+	return (!m_deformer || !m_deformer->SkipVertexTransform());
+}
+
 void RAS_DisplayArrayBucket::UpdateActiveMeshSlots(RAS_Rasterizer::DrawType drawingMode)
 {
 	if (m_deformer) {
@@ -174,7 +202,8 @@ void RAS_DisplayArrayBucket::UpdateActiveMeshSlots(RAS_Rasterizer::DrawType draw
 }
 
 void RAS_DisplayArrayBucket::GenerateTree(RAS_MaterialDownwardNode& downwardRoot, RAS_MaterialUpwardNode& upwardRoot,
-                                          RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool sort, bool instancing)
+		RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode,
+		bool shaderOverride, bool sort, bool polySort, bool instancing, bool text)
 {
 	if (m_activeMeshSlots.empty()) {
 		return;
@@ -184,20 +213,26 @@ void RAS_DisplayArrayBucket::GenerateTree(RAS_MaterialDownwardNode& downwardRoot
 	UpdateActiveMeshSlots(drawingMode);
 
 	if (instancing) {
-		downwardRoot.AddChild(&m_instancingNode);
+		downwardRoot.AddChild(&m_instancingNode[shaderOverride][sort]);
 	}
 	else if (UseBatching()) {
-		downwardRoot.AddChild(&m_batchingNode);
+		downwardRoot.AddChild(&m_batchingNode[sort]);
 	}
 	else if (sort) {
+		RAS_DisplayArrayUpwardNode& upwardNode = m_upwardNode[text];
 		for (RAS_MeshSlot *slot : m_activeMeshSlots) {
-			slot->GenerateTree(m_upwardNode, upwardLeafs);
+			slot->GenerateTree(upwardNode, upwardLeafs, polySort);
 		}
 
-		m_upwardNode.SetParent(&upwardRoot);
+		upwardNode.SetParent(&upwardRoot);
 	}
 	else {
-		downwardRoot.AddChild(&m_downwardNode);
+		if (text) {
+			downwardRoot.AddChild(&m_textNode[shaderOverride]);
+		}
+		else {
+			downwardRoot.AddChild(&m_downwardNode[shaderOverride]);
+		}
 	}
 }
 
@@ -211,29 +246,25 @@ void RAS_DisplayArrayBucket::UnbindUpwardNode(const RAS_DisplayArrayNodeTuple& t
 	m_nodeData.m_attribStorage->UnbindPrimitives();
 }
 
+template <bool Override, bool ApplyMatrix, bool Text>
 void RAS_DisplayArrayBucket::RunDownwardNode(const RAS_DisplayArrayNodeTuple& tuple)
 {
-	RAS_AttributeArrayStorage *attribStorage = m_nodeData.m_attribStorage;
-	attribStorage->BindPrimitives();
+	if (!Text) {
+		m_nodeData.m_attribStorage->BindPrimitives();
+	}
 
 	const RAS_MeshSlotNodeTuple msTuple(tuple, &m_nodeData);
 	for (RAS_MeshSlot *ms : m_activeMeshSlots) {
 		// Reuse the node function without spend time storing RAS_MeshSlot under nodes.
-		ms->RunNode(msTuple);
+		ms->RunNode<Override, false, Text, ApplyMatrix>(msTuple);
 	}
 
-	attribStorage->UnbindPrimitives();
-}
-
-void RAS_DisplayArrayBucket::RunDownwardNodeNoArray(const RAS_DisplayArrayNodeTuple& tuple)
-{
-	const RAS_MeshSlotNodeTuple msTuple(tuple, &m_nodeData);
-	for (RAS_MeshSlot *ms : m_activeMeshSlots) {
-		// Reuse the node function without spend time storing RAS_MeshSlot under nodes.
-		ms->RunNode(msTuple);
+	if (!Text) {
+		m_nodeData.m_attribStorage->UnbindPrimitives();
 	}
 }
 
+template <bool Override, bool Sort>
 void RAS_DisplayArrayBucket::RunInstancingNode(const RAS_DisplayArrayNodeTuple& tuple)
 {
 	RAS_ManagerNodeData *managerData = tuple.m_managerData;
@@ -255,7 +286,7 @@ void RAS_DisplayArrayBucket::RunInstancingNode(const RAS_DisplayArrayNodeTuple& 
 	/* If the material use the transparency we must sort all mesh slots depending on the distance.
 	 * This code share the code used in RAS_BucketManager to do the sort.
 	 */
-	if (managerData->m_sort) {
+	if (/*managerData->m_sort*/Sort) {
 		std::vector<RAS_BucketManager::SortedMeshSlot> sortedMeshSlots(nummeshslots);
 
 		const mt::mat3x4& trans = managerData->m_trans;
@@ -286,7 +317,7 @@ void RAS_DisplayArrayBucket::RunInstancingNode(const RAS_DisplayArrayNodeTuple& 
 	m_instancingBuffer->Bind();
 
 	// Bind all vertex attributs for the used material and the given buffer offset.
-	if (managerData->m_shaderOverride) {
+	if (/*managerData->m_shaderOverride*/Override) {
 		rasty->ActivateOverrideShaderInstancing(
 			m_instancingBuffer->GetMatrixOffset(),
 			m_instancingBuffer->GetPositionOffset(),
@@ -319,6 +350,7 @@ void RAS_DisplayArrayBucket::RunInstancingNode(const RAS_DisplayArrayNodeTuple& 
 	attribStorage->UnbindPrimitives();
 }
 
+template <bool Sort>
 void RAS_DisplayArrayBucket::RunBatchingNode(const RAS_DisplayArrayNodeTuple& tuple)
 {
 	RAS_ManagerNodeData *managerData = tuple.m_managerData;
@@ -335,7 +367,7 @@ void RAS_DisplayArrayBucket::RunBatchingNode(const RAS_DisplayArrayNodeTuple& tu
 	/* If the material use the transparency we must sort all mesh slots depending on the distance.
 	 * This code share the code used in RAS_BucketManager to do the sort.
 	 */
-	if (managerData->m_sort) {
+	if (/*managerData->m_sort*/Sort) {
 		std::vector<RAS_BucketManager::SortedMeshSlot> sortedMeshSlots(nummeshslots);
 
 		const mt::mat3x4& trans = managerData->m_trans;
@@ -347,14 +379,14 @@ void RAS_DisplayArrayBucket::RunBatchingNode(const RAS_DisplayArrayNodeTuple& tu
 
 		std::sort(sortedMeshSlots.begin(), sortedMeshSlots.end(), RAS_BucketManager::backtofront());
 		for (unsigned int i = 0; i < nummeshslots; ++i) {
-			const short index = sortedMeshSlots[i].m_ms->m_batchPartIndex;
+			const short index = sortedMeshSlots[i].m_ms->GetBatchPartIndex();
 			indices[i] = batchArray->GetPartIndexOffset(index);
 			counts[i] = batchArray->GetPartIndexCount(index);
 		}
 	}
 	else {
 		for (unsigned int i = 0; i < nummeshslots; ++i) {
-			const short index = m_activeMeshSlots[i]->m_batchPartIndex;
+			const short index = m_activeMeshSlots[i]->GetBatchPartIndex();
 			indices[i] = batchArray->GetPartIndexOffset(index);
 			counts[i] = batchArray->GetPartIndexCount(index);
 		}

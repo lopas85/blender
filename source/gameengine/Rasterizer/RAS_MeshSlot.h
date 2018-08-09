@@ -42,9 +42,6 @@ class RAS_MeshUser;
 class RAS_MeshSlot
 {
 private:
-	RAS_MeshSlotUpwardNode m_node;
-
-public:
 	// for rendering
 	RAS_DisplayArrayBucket *m_displayArrayBucket;
 	RAS_MeshUser *m_meshUser;
@@ -52,13 +49,26 @@ public:
 	/// Batch index used for batching render.
 	short m_batchPartIndex;
 
+	// Poly sort.
+	RAS_MeshSlotUpwardNode m_node[2];
+
+	void ConstructNodes();
+
+public:
 	RAS_MeshSlot(RAS_MeshUser *meshUser, RAS_DisplayArrayBucket *arrayBucket);
 	RAS_MeshSlot(const RAS_MeshSlot& other);
-	virtual ~RAS_MeshSlot();
+	~RAS_MeshSlot();
 
+	RAS_DisplayArrayBucket *GetDisplayArrayBucket() const;
 	void SetDisplayArrayBucket(RAS_DisplayArrayBucket *arrayBucket);
 
-	void GenerateTree(RAS_DisplayArrayUpwardNode& root, RAS_UpwardTreeLeafs& leafs);
+	RAS_MeshUser *GetMeshUser() const;
+	short GetBatchPartIndex() const;
+	void SetBatchPartIndex(short index);
+
+	void GenerateTree(RAS_DisplayArrayUpwardNode& root, RAS_UpwardTreeLeafs& leafs, bool polySort);
+
+	template <bool Override, bool PolySort, bool Text, bool ApplyMatrix>
 	void RunNode(const RAS_MeshSlotNodeTuple& tuple);
 };
 

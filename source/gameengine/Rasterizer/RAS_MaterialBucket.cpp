@@ -47,9 +47,7 @@
 #endif // WIN32
 
 RAS_MaterialBucket::RAS_MaterialBucket(RAS_IPolyMaterial *mat)
-	:m_material(mat),
-	m_downwardNode(this, &m_nodeData, &RAS_MaterialBucket::BindNode, &RAS_MaterialBucket::UnbindNode),
-	m_upwardNode(this, &m_nodeData, &RAS_MaterialBucket::BindNode, &RAS_MaterialBucket::UnbindNode)
+	:m_material(mat)
 {
 	m_nodeData.m_material = m_material;
 	m_nodeData.m_drawingMode = m_material->GetDrawingMode();
@@ -57,6 +55,16 @@ RAS_MaterialBucket::RAS_MaterialBucket(RAS_IPolyMaterial *mat)
 	m_nodeData.m_zsort = m_material->IsZSort();
 	m_nodeData.m_text = m_material->IsText();
 	m_nodeData.m_zoffset = m_material->GetZOffset();
+
+	m_downwardNode[0] = RAS_MaterialDownwardNode(this, &m_nodeData,
+			&RAS_MaterialBucket::BindNode<false>, &RAS_MaterialBucket::UnbindNode<false>);
+	m_downwardNode[1] = RAS_MaterialDownwardNode(this, &m_nodeData,
+			&RAS_MaterialBucket::BindNode<true>, &RAS_MaterialBucket::UnbindNode<true>);
+
+	m_upwardNode[0] = RAS_MaterialUpwardNode(this, &m_nodeData,
+			&RAS_MaterialBucket::BindNode<false>, &RAS_MaterialBucket::UnbindNode<false>);
+	m_upwardNode[1] = RAS_MaterialUpwardNode(this, &m_nodeData,
+			&RAS_MaterialBucket::BindNode<true>, &RAS_MaterialBucket::UnbindNode<true>);
 }
 
 RAS_MaterialBucket::~RAS_MaterialBucket()
@@ -106,7 +114,7 @@ void RAS_MaterialBucket::DesactivateMaterial(RAS_Rasterizer *rasty)
 }
 
 void RAS_MaterialBucket::GenerateTree(RAS_ManagerDownwardNode& downwardRoot, RAS_ManagerUpwardNode& upwardRoot,
-                                      RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool sort)
+		RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool shaderOverride, bool sort)
 {
 	if (m_displayArrayBucketList.empty()) {
 		return;
@@ -114,16 +122,18 @@ void RAS_MaterialBucket::GenerateTree(RAS_ManagerDownwardNode& downwardRoot, RAS
 
 	const bool instancing = UseInstancing();
 	for (RAS_DisplayArrayBucket *displayArrayBucket : m_displayArrayBucketList) {
-		displayArrayBucket->GenerateTree(m_downwardNode, m_upwardNode, upwardLeafs, drawingMode, sort, instancing);
+		displayArrayBucket->GenerateTree(m_downwardNode[shaderOverride], m_upwardNode[shaderOverride], upwardLeafs, drawingMode,
+				shaderOverride, sort, m_nodeData.m_zsort, instancing, m_nodeData.m_text);
 	}
 
-	downwardRoot.AddChild(&m_downwardNode);
+	downwardRoot.AddChild(&m_downwardNode[shaderOverride]);
 
 	if (sort) {
-		m_upwardNode.SetParent(&upwardRoot);
+		m_upwardNode[shaderOverride].SetParent(&upwardRoot);
 	}
 }
 
+template <bool Override>
 void RAS_MaterialBucket::BindNode(const RAS_MaterialNodeTuple& tuple)
 {
 	RAS_ManagerNodeData *managerData = tuple.m_managerData;
@@ -131,15 +141,16 @@ void RAS_MaterialBucket::BindNode(const RAS_MaterialNodeTuple& tuple)
 	rasty->SetCullFace(m_nodeData.m_cullFace);
 	rasty->SetPolygonOffset(managerData->m_drawingMode, -m_nodeData.m_zoffset, 0.0f);
 
-	if (!managerData->m_shaderOverride) {
+	if (/*!managerData->m_shaderOverride*/!Override) {
 		ActivateMaterial(managerData->m_rasty);
 	}
 }
 
+template <bool Override>
 void RAS_MaterialBucket::UnbindNode(const RAS_MaterialNodeTuple& tuple)
 {
 	RAS_ManagerNodeData *managerData = tuple.m_managerData;
-	if (!managerData->m_shaderOverride) {
+	if (/*!managerData->m_shaderOverride*/!Override) {
 		DesactivateMaterial(managerData->m_rasty);
 	}
 }

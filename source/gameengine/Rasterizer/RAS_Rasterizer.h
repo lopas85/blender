@@ -301,7 +301,6 @@ private:
 	float m_motionblurvalue;
 
 	/* Render tools */
-	void *m_clientobject;
 	void *m_auxilaryClientInfo;
 	std::vector<RAS_OpenGLLight *> m_lights;
 	int m_lastlightlayer;
@@ -662,7 +661,7 @@ public:
 	/**
 	 * Render Tools
 	 */
-	void GetTransform(float *origmat, int objectdrawmode, float mat[16]);
+	void GetTransform(float *origmat, int objectdrawmode, void *clientObject, float mat[16]);
 
 	void DisableForText();
 	/**
@@ -681,7 +680,7 @@ public:
 
 	void EnableLights();
 	void DisableLights();
-	void ProcessLighting(bool uselights, const mt::mat3x4 &trans);
+	void ProcessLighting(bool uselights, void *clientObject, const mt::mat3x4 &trans);
 
 	void PushMatrix();
 	void PopMatrix();
@@ -704,8 +703,6 @@ public:
 	void ResetGlobalDepthTexture();
 
 	void MotionBlur();
-
-	void SetClientObject(void *obj);
 
 	void SetAuxilaryClientInfo(void *inf);
 

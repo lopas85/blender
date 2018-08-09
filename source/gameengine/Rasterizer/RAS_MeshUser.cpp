@@ -138,6 +138,6 @@ void RAS_MeshUser::SetBatchGroup(RAS_BatchGroup *batchGroup)
 void RAS_MeshUser::ActivateMeshSlots()
 {
 	for (RAS_MeshSlot& ms : m_meshSlots) {
-		ms.m_displayArrayBucket->ActivateMesh(&ms);
+		ms.GetDisplayArrayBucket()->ActivateMesh(&ms);
 	}
 }

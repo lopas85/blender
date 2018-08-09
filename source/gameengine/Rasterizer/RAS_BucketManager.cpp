@@ -49,7 +49,7 @@ RAS_BucketManager::SortedMeshSlot::SortedMeshSlot(RAS_MeshSlot *ms, const mt::ve
 	:m_ms(ms)
 {
 	// would be good to use the actual bounding box center instead
-	float *matrix = m_ms->m_meshUser->GetMatrix();
+	float *matrix = m_ms->GetMeshUser()->GetMatrix();
 	const mt::vec3 pos(matrix[12], matrix[13], matrix[14]);
 
 	m_z = mt::dot(pnorm, pos);
@@ -60,7 +60,7 @@ RAS_BucketManager::SortedMeshSlot::SortedMeshSlot(RAS_MeshSlotUpwardNode *node, 
 {
 	RAS_MeshSlot *ms = m_node->GetOwner();
 	// would be good to use the actual bounding box center instead
-	float *matrix = ms->m_meshUser->GetMatrix();
+	float *matrix = ms->GetMeshUser()->GetMatrix();
 	const mt::vec3 pos(matrix[12], matrix[13], matrix[14]);
 
 	m_z = mt::dot(pnorm, pos);
@@ -113,7 +113,7 @@ void RAS_BucketManager::RenderSortedBuckets(RAS_Rasterizer *rasty, RAS_BucketMan
 	BucketList& solidBuckets = m_buckets[bucketType];
 	RAS_UpwardTreeLeafs leafs;
 	for (RAS_MaterialBucket *bucket : solidBuckets) {
-		bucket->GenerateTree(m_downwardNode, m_upwardNode, leafs, m_nodeData.m_drawingMode, true);
+		bucket->GenerateTree(m_downwardNode, m_upwardNode, leafs, m_nodeData.m_drawingMode, m_nodeData.m_shaderOverride, true);
 	}
 
 	m_nodeData.m_sort = true;
@@ -149,7 +149,7 @@ void RAS_BucketManager::RenderBasicBuckets(RAS_Rasterizer *rasty, RAS_BucketMana
 
 	RAS_UpwardTreeLeafs leafs;
 	for (RAS_MaterialBucket *bucket : m_buckets[bucketType]) {
-		bucket->GenerateTree(m_downwardNode, m_upwardNode, leafs, m_nodeData.m_drawingMode, false);
+		bucket->GenerateTree(m_downwardNode, m_upwardNode, leafs, m_nodeData.m_drawingMode, m_nodeData.m_shaderOverride, false);
 	}
 
 	if (m_downwardNode.GetValid()) {
@@ -250,7 +250,7 @@ void RAS_BucketManager::Renderbuckets(RAS_Rasterizer::DrawType drawingMode, cons
 				rasty->SetOverrideShader(RAS_Rasterizer::RAS_OVERRIDE_SHADER_BLACK_INSTANCING);
 			}
 			RenderBasicBuckets(rasty, SOLID_INSTANCING_BUCKET);
-			RenderSortedBuckets(rasty, ALPHA_INSTANCING_BUCKET);
+			RenderBasicBuckets(rasty, ALPHA_INSTANCING_BUCKET);
 
 			/* Rendering alpha and alpha depth regular materials with
 			 * an empty shader and ordering.
@@ -259,7 +259,7 @@ void RAS_BucketManager::Renderbuckets(RAS_Rasterizer::DrawType drawingMode, cons
 			if (!m_buckets[ALPHA_BUCKET].empty()) {
 				rasty->SetOverrideShader(RAS_Rasterizer::RAS_OVERRIDE_SHADER_BLACK);
 			}
-			RenderSortedBuckets(rasty, ALPHA_BUCKET);
+			RenderBasicBuckets(rasty, ALPHA_BUCKET);
 
 			rasty->SetOverrideShader(RAS_Rasterizer::RAS_OVERRIDE_SHADER_NONE);
 
@@ -323,8 +323,6 @@ void RAS_BucketManager::Renderbuckets(RAS_Rasterizer::DrawType drawingMode, cons
 	for (RAS_MaterialBucket *bucket : m_buckets[ALL_BUCKET]) {
 		bucket->RemoveActiveMeshSlots();
 	}
-
-	rasty->SetClientObject(nullptr);
 }
 
 RAS_MaterialBucket *RAS_BucketManager::FindBucket(RAS_IPolyMaterial *material, bool &bucketCreated)

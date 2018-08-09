@@ -368,7 +368,7 @@ void KX_BlenderMaterial::ActivateMeshSlot(RAS_MeshSlot *ms, RAS_Rasterizer *rast
 		m_shader->Update(rasty, ms);
 		m_shader->ApplyShader();
 		// Update OpenGL lighting builtins.
-		rasty->ProcessLighting(UsesLighting(), camtrans);
+		rasty->ProcessLighting(UsesLighting(), ms->GetMeshUser()->GetClientObject(), camtrans);
 	}
 	else if (m_blenderShader) {
 		m_blenderShader->Update(ms, rasty);

@@ -60,8 +60,11 @@ public:
 
 	// Render nodes.
 	void GenerateTree(RAS_ManagerDownwardNode& downwardRoot, RAS_ManagerUpwardNode& upwardRoot,
-			RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool sort);
+			RAS_UpwardTreeLeafs& upwardLeafs, RAS_Rasterizer::DrawType drawingMode, bool shaderOverride, bool sort);
+
+	template <bool Override>
 	void BindNode(const RAS_MaterialNodeTuple& tuple);
+	template <bool Override>
 	void UnbindNode(const RAS_MaterialNodeTuple& tuple);
 
 	void RemoveActiveMeshSlots();
@@ -78,8 +81,10 @@ private:
 	RAS_DisplayArrayBucketList m_displayArrayBucketList;
 
 	RAS_MaterialNodeData m_nodeData;
-	RAS_MaterialDownwardNode m_downwardNode;
-	RAS_MaterialUpwardNode m_upwardNode;
+	// Override.
+	RAS_MaterialDownwardNode m_downwardNode[2];
+	// Override.
+	RAS_MaterialUpwardNode m_upwardNode[2];
 };
 
 #endif  // __RAS_MATERIAL_BUCKET_H__

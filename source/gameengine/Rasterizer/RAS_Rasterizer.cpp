@@ -208,7 +208,6 @@ RAS_Rasterizer::RAS_Rasterizer()
 	m_noOfScanlines(32),
 	m_motionblur(0),
 	m_motionblurvalue(-1.0f),
-	m_clientobject(nullptr),
 	m_auxilaryClientInfo(nullptr),
 	m_drawingmode(RAS_TEXTURED),
 	m_shadowMode(RAS_SHADOW_NONE),
@@ -332,7 +331,6 @@ void RAS_Rasterizer::BeginFrame(double time)
 	SetDepthFunc(RAS_LEQUAL);
 
 	// Render Tools
-	m_clientobject = nullptr;
 	m_lastlightlayer = -1;
 	m_lastauxinfo = nullptr;
 	m_lastlighting = true; /* force disable in DisableLights() */
@@ -677,7 +675,7 @@ const mt::mat4& RAS_Rasterizer::GetViewInvMatrix() const
 
 void RAS_Rasterizer::IndexPrimitivesText(RAS_MeshSlot *ms)
 {
-	RAS_TextUser *textUser = (RAS_TextUser *)ms->m_meshUser;
+	RAS_TextUser *textUser = static_cast<RAS_TextUser *>(ms->GetMeshUser());
 
 	float mat[16];
 	memcpy(mat, textUser->GetMatrix(), sizeof(float) * 16);
@@ -1146,16 +1144,14 @@ void RAS_Rasterizer::ActivateOverrideShaderInstancing(void *matrixoffset, void *
  * has a maximum of 8 lights (simultaneous), so 20 * 8 lights are possible in
  * a scene. */
 
-void RAS_Rasterizer::ProcessLighting(bool uselights, const mt::mat3x4& viewmat)
+void RAS_Rasterizer::ProcessLighting(bool uselights, void *clientObject, const mt::mat3x4& viewmat)
 {
 	bool enable = false;
 	int layer = -1;
 
 	/* find the layer */
 	if (uselights) {
-		if (m_clientobject) {
-			layer = KX_GameObject::GetClientObject((KX_ClientObjectInfo *)m_clientobject)->GetLayer();
-		}
+		layer = KX_GameObject::GetClientObject((KX_ClientObjectInfo *)clientObject)->GetLayer();
 	}
 
 	/* avoid state switching */
@@ -1293,7 +1289,7 @@ bool RAS_Rasterizer::NeedRayCast(KX_ClientObjectInfo *UNUSED(info), void *UNUSED
 	return true;
 }
 
-void RAS_Rasterizer::GetTransform(float *origmat, int objectdrawmode, float mat[16])
+void RAS_Rasterizer::GetTransform(float *origmat, int objectdrawmode, void *clientObject, float mat[16])
 {
 	if (objectdrawmode == RAS_IPolyMaterial::RAS_NORMAL) {
 		// 'normal' object
@@ -1350,7 +1346,7 @@ void RAS_Rasterizer::GetTransform(float *origmat, int objectdrawmode, float mat[
 	else {
 		// shadow must be cast to the ground, physics system needed here!
 		const mt::vec3 frompoint(&origmat[12]);
-		KX_GameObject *gameobj = KX_GameObject::GetClientObject((KX_ClientObjectInfo *)m_clientobject);
+		KX_GameObject *gameobj = KX_GameObject::GetClientObject((KX_ClientObjectInfo *)clientObject);
 		mt::vec3 direction = -mt::axisZ3;
 
 		direction.Normalize();
@@ -1452,11 +1448,6 @@ void RAS_Rasterizer::ResetGlobalDepthTexture()
 void RAS_Rasterizer::MotionBlur()
 {
 	m_impl->MotionBlur(m_motionblur, m_motionblurvalue);
-}
-
-void RAS_Rasterizer::SetClientObject(void *obj)
-{
-	m_clientobject = obj;
 }
 
 void RAS_Rasterizer::SetAuxilaryClientInfo(void *inf)

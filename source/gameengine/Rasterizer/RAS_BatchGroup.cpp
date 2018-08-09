@@ -72,7 +72,7 @@ RAS_BatchGroup *RAS_BatchGroup::RemoveMeshUser()
 
 bool RAS_BatchGroup::MergeMeshSlot(RAS_BatchGroup::Batch& batch, RAS_MeshSlot& slot, const mt::mat4& mat)
 {
-	RAS_DisplayArrayBucket *origArrayBucket = slot.m_displayArrayBucket;
+	RAS_DisplayArrayBucket *origArrayBucket = slot.GetDisplayArrayBucket();
 	RAS_DisplayArray *origArray = origArrayBucket->GetDisplayArray();
 	RAS_DisplayArrayBucket *arrayBucket = batch.m_displayArrayBucket;
 	RAS_BatchDisplayArray *array = batch.m_displayArray;
@@ -94,7 +94,7 @@ bool RAS_BatchGroup::MergeMeshSlot(RAS_BatchGroup::Batch& batch, RAS_MeshSlot& s
 
 	// Merge display array.
 	const unsigned int index = array->Merge(origArray, mat);
-	slot.m_batchPartIndex = index;
+	slot.SetBatchPartIndex(index);
 
 	slot.SetDisplayArrayBucket(arrayBucket);
 
@@ -103,7 +103,7 @@ bool RAS_BatchGroup::MergeMeshSlot(RAS_BatchGroup::Batch& batch, RAS_MeshSlot& s
 
 bool RAS_BatchGroup::SplitMeshSlot(RAS_MeshSlot& slot)
 {
-	RAS_MaterialBucket *bucket = slot.m_displayArrayBucket->GetBucket();
+	RAS_MaterialBucket *bucket = slot.GetDisplayArrayBucket()->GetBucket();
 	RAS_IPolyMaterial *material = bucket->GetMaterial();
 
 	std::map<RAS_IPolyMaterial *, Batch>::iterator bit = m_batchs.find(material);
@@ -123,17 +123,17 @@ bool RAS_BatchGroup::SplitMeshSlot(RAS_MeshSlot& slot)
 
 	slot.SetDisplayArrayBucket(origArrayBucket);
 
-	batch.m_displayArray->Split(slot.m_batchPartIndex);
+	batch.m_displayArray->Split(slot.GetBatchPartIndex());
 
 	batch.m_originalDisplayArrayBucketList.erase(&slot);
 
-	slot.m_batchPartIndex = -1;
+	slot.SetBatchPartIndex(-1);
 
 	// One part is removed and then all the part after must use an index smaller of one.
 	RAS_MeshSlotList::iterator mit = batch.m_meshSlots.erase(std::find(batch.m_meshSlots.begin(), batch.m_meshSlots.end(), &slot));
 	for (RAS_MeshSlotList::iterator it = mit, end = batch.m_meshSlots.end(); it != end; ++it) {
 		RAS_MeshSlot *meshSlot = *it;
-		--meshSlot->m_batchPartIndex;
+		meshSlot->SetBatchPartIndex(meshSlot->GetBatchPartIndex() - 1);
 	}
 
 	return true;
@@ -142,7 +142,7 @@ bool RAS_BatchGroup::SplitMeshSlot(RAS_MeshSlot& slot)
 bool RAS_BatchGroup::MergeMeshUser(RAS_MeshUser *meshUser, const mt::mat4& mat)
 {
 	for (RAS_MeshSlot& meshSlot : meshUser->GetMeshSlots()) {
-		RAS_DisplayArrayBucket *arrayBucket = meshSlot.m_displayArrayBucket;
+		RAS_DisplayArrayBucket *arrayBucket = meshSlot.GetDisplayArrayBucket();
 		RAS_MaterialBucket *bucket = arrayBucket->GetBucket();
 		RAS_IPolyMaterial *material = bucket->GetMaterial();
 
@@ -195,9 +195,9 @@ void RAS_BatchGroup::Destruct()
 
 			slot->SetDisplayArrayBucket(origArrayBucket);
 
-			slot->m_meshUser->SetBatchGroup(nullptr);
+			slot->GetMeshUser()->SetBatchGroup(nullptr);
 
-			slot->m_batchPartIndex = -1;
+			slot->SetBatchPartIndex(-1);
 		}
 	}
 

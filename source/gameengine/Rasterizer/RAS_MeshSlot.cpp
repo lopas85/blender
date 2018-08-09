@@ -33,7 +33,9 @@
 #include "RAS_MeshUser.h"
 #include "RAS_IPolygonMaterial.h"
 #include "RAS_DisplayArray.h"
+#include "RAS_DisplayArrayBucket.h"
 #include "RAS_DisplayArrayStorage.h"
+#include "RAS_MaterialBucket.h"
 #include "RAS_Mesh.h"
 
 #ifdef _MSC_VER
@@ -48,23 +50,49 @@ static RAS_DummyNodeData dummyNodeData;
 
 // mesh slot
 RAS_MeshSlot::RAS_MeshSlot(RAS_MeshUser *meshUser, RAS_DisplayArrayBucket *arrayBucket)
-	:m_node(this, &dummyNodeData, &RAS_MeshSlot::RunNode, nullptr),
-	m_displayArrayBucket(arrayBucket),
+	:m_displayArrayBucket(arrayBucket),
 	m_meshUser(meshUser),
 	m_batchPartIndex(-1)
 {
+	ConstructNodes();
+}
+
+RAS_MeshSlot::RAS_MeshSlot(const RAS_MeshSlot& other)
+	:m_displayArrayBucket(other.m_displayArrayBucket),
+	m_meshUser(other.m_meshUser),
+	m_batchPartIndex(other.m_batchPartIndex)
+{
+	ConstructNodes();
 }
 
 RAS_MeshSlot::~RAS_MeshSlot()
 {
 }
 
-RAS_MeshSlot::RAS_MeshSlot(const RAS_MeshSlot& other)
-	:m_node(this, &dummyNodeData, &RAS_MeshSlot::RunNode, nullptr),
-	m_displayArrayBucket(other.m_displayArrayBucket),
-	m_meshUser(other.m_meshUser),
-	m_batchPartIndex(other.m_batchPartIndex)
+void RAS_MeshSlot::ConstructNodes()
 {
+	if (m_displayArrayBucket->GetBucket()->GetMaterial()->IsText()) {
+		m_node[0] = RAS_MeshSlotUpwardNode(this, &dummyNodeData,
+				&RAS_MeshSlot::RunNode<false, false, true, true>, nullptr);
+	}
+
+	if (m_displayArrayBucket->ApplyMatrix()) {
+		m_node[0] = RAS_MeshSlotUpwardNode(this, &dummyNodeData,
+				&RAS_MeshSlot::RunNode<false, false, false, true>, nullptr);
+		m_node[1] = RAS_MeshSlotUpwardNode(this, &dummyNodeData,
+				&RAS_MeshSlot::RunNode<false, true, false, true>, nullptr);
+	}
+	else {
+		m_node[0] = RAS_MeshSlotUpwardNode(this, &dummyNodeData,
+				&RAS_MeshSlot::RunNode<false, false, false, false>, nullptr);
+		m_node[1] = RAS_MeshSlotUpwardNode(this, &dummyNodeData,
+				&RAS_MeshSlot::RunNode<false, true, false, false>, nullptr);
+	}
+}
+
+RAS_DisplayArrayBucket *RAS_MeshSlot::GetDisplayArrayBucket() const
+{
+	return m_displayArrayBucket;
 }
 
 void RAS_MeshSlot::SetDisplayArrayBucket(RAS_DisplayArrayBucket *arrayBucket)
@@ -72,45 +100,84 @@ void RAS_MeshSlot::SetDisplayArrayBucket(RAS_DisplayArrayBucket *arrayBucket)
 	m_displayArrayBucket = arrayBucket;
 }
 
-void RAS_MeshSlot::GenerateTree(RAS_DisplayArrayUpwardNode& root, RAS_UpwardTreeLeafs& leafs)
+RAS_MeshUser *RAS_MeshSlot::GetMeshUser() const
 {
-	m_node.SetParent(&root);
-	leafs.push_back(&m_node);
+	return m_meshUser;
 }
 
+short RAS_MeshSlot::GetBatchPartIndex() const
+{
+	return m_batchPartIndex;
+}
+
+void RAS_MeshSlot::SetBatchPartIndex(short index)
+{
+	m_batchPartIndex = index;
+}
+
+void RAS_MeshSlot::GenerateTree(RAS_DisplayArrayUpwardNode& root, RAS_UpwardTreeLeafs& leafs, bool polySort)
+{
+	RAS_MeshSlotUpwardNode& node = m_node[polySort];
+	node.SetParent(&root);
+	leafs.push_back(&node);
+}
+
+template <bool Override, bool PolySort, bool Text, bool ApplyMatrix>
 void RAS_MeshSlot::RunNode(const RAS_MeshSlotNodeTuple& tuple)
 {
 	RAS_ManagerNodeData *managerData = tuple.m_managerData;
 	RAS_MaterialNodeData *materialData = tuple.m_materialData;
 	RAS_DisplayArrayNodeData *displayArrayData = tuple.m_displayArrayData;
 	RAS_Rasterizer *rasty = managerData->m_rasty;
-	rasty->SetClientObject(m_meshUser->GetClientObject());
 	rasty->SetFrontFace(m_meshUser->GetFrontFace());
 
 	RAS_DisplayArrayStorage *storage = displayArrayData->m_arrayStorage;
 
-	if (!managerData->m_shaderOverride) {
+#if 0
+	if (/*!managerData->m_shaderOverride*/!Override && !Text)
+#endif
+	/*{*/
 		materialData->m_material->ActivateMeshSlot(this, rasty, managerData->m_trans);
-
-		if (materialData->m_zsort && storage) {
+#if 0
+		if (/*materialData->m_zsort*/PolySort) {
 			displayArrayData->m_array->SortPolygons(managerData->m_trans * mt::mat3x4(m_meshUser->GetMatrix()),
 			                                        storage->GetIndexMap());
 			storage->FlushIndexMap();
 		}
 	}
+#endif
 
 	rasty->PushMatrix();
-
-	if (materialData->m_text) {
+#if 0
+	if (/*materialData->m_text*/Text) {
 		rasty->IndexPrimitivesText(this);
 	}
-	else {
-		if (displayArrayData->m_applyMatrix) {
+	else
+#endif
+	{
+#if 0
+		if (/*displayArrayData->m_applyMatrix*/ApplyMatrix)
+#endif
+		{
 			float mat[16];
-			rasty->GetTransform(m_meshUser->GetMatrix(), materialData->m_drawingMode, mat);
+			rasty->GetTransform(m_meshUser->GetMatrix(), materialData->m_drawingMode, m_meshUser->GetClientObject(), mat);
 			rasty->MultMatrix(mat);
 		}
 		storage->IndexPrimitives();
 	}
 	rasty->PopMatrix();
 }
+
+// No sort
+template void RAS_MeshSlot::RunNode<false, false, false, false>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<true, false, false, false>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<false, false, false, true>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<true, false, false, true>(const RAS_MeshSlotNodeTuple& tuple);
+// Sort
+template void RAS_MeshSlot::RunNode<false, true, false, false>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<true, true, false, false>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<false, true, false, true>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<true, true, false, true>(const RAS_MeshSlotNodeTuple& tuple);
+// Text
+template void RAS_MeshSlot::RunNode<false, false, true, false>(const RAS_MeshSlotNodeTuple& tuple);
+template void RAS_MeshSlot::RunNode<true, false, true, false>(const RAS_MeshSlotNodeTuple& tuple);
